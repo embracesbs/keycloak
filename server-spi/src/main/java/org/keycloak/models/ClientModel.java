@@ -34,6 +34,10 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
     String PUBLIC_KEY = "publicKey";
     String X509CERTIFICATE = "X509Certificate";
 
+    // MULTI-TENANCY ATTRIBUTES
+
+    String MULTI_TENANT = "multi.tenant.client";
+
     void updateClient();
 
     /**
@@ -142,7 +146,6 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
     boolean isFullScopeAllowed();
     void setFullScopeAllowed(boolean value);
 
-
     boolean isPublicClient();
     void setPublicClient(boolean flag);
 
@@ -231,4 +234,14 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
         }
         return consentScreenText;
     }
+
+    default boolean isMultiTenant() {
+        String multiTenantAttribute = getAttribute(MULTI_TENANT);
+        return multiTenantAttribute==null ? false : Boolean.parseBoolean(multiTenantAttribute);
+    }
+
+    default void setMultiTenant(boolean multiTenant) {
+        setAttribute(MULTI_TENANT, String.valueOf(multiTenant));
+    }
+
 }

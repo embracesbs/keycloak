@@ -1289,6 +1289,7 @@ public class RepresentationToModel {
         if (resourceRep.getBaseUrl() != null) client.setBaseUrl(resourceRep.getBaseUrl());
         if (resourceRep.isBearerOnly() != null) client.setBearerOnly(resourceRep.isBearerOnly());
         if (resourceRep.isConsentRequired() != null) client.setConsentRequired(resourceRep.isConsentRequired());
+        if (resourceRep.isMultiTenant() != null) client.setMultiTenant(resourceRep.isMultiTenant());
 
         // Backwards compatibility only
         if (resourceRep.isDirectGrantsOnly() != null) {
@@ -1472,6 +1473,7 @@ public class RepresentationToModel {
         if (rep.isAlwaysDisplayInConsole() != null) resource.setAlwaysDisplayInConsole(rep.isAlwaysDisplayInConsole());
         if (rep.isBearerOnly() != null) resource.setBearerOnly(rep.isBearerOnly());
         if (rep.isConsentRequired() != null) resource.setConsentRequired(rep.isConsentRequired());
+        if (rep.isMultiTenant() != null) resource.setMultiTenant(rep.isMultiTenant());
         if (rep.isStandardFlowEnabled() != null) resource.setStandardFlowEnabled(rep.isStandardFlowEnabled());
         if (rep.isImplicitFlowEnabled() != null) resource.setImplicitFlowEnabled(rep.isImplicitFlowEnabled());
         if (rep.isDirectAccessGrantsEnabled() != null)

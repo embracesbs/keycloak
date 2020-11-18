@@ -19,18 +19,15 @@ package org.keycloak.services.managers;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import org.jboss.logging.Logger;
+import org.keycloak.Config;
 import org.keycloak.authentication.ClientAuthenticator;
 import org.keycloak.authentication.ClientAuthenticatorFactory;
+import org.keycloak.authorization.model.ResourceServer;
 import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.common.util.Time;
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.ProtocolMapperModel;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserManager;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserSessionProvider;
+import org.keycloak.models.*;
 import org.keycloak.models.session.UserSessionPersisterProvider;
+import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.models.utils.RepresentationToModel;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.LoginProtocolFactory;
@@ -39,15 +36,17 @@ import org.keycloak.protocol.oidc.mappers.UserSessionNoteMapper;
 import org.keycloak.representations.adapters.config.BaseRealmConfig;
 import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
 import org.keycloak.representations.idm.ClientRepresentation;
+import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.representations.idm.RoleRepresentation;
+import org.keycloak.representations.idm.authorization.ResourceServerRepresentation;
+import org.keycloak.services.ForbiddenException;
+import org.keycloak.services.resources.admin.permissions.AdminPermissions;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 
 import java.net.URI;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
+
+import static java.lang.Boolean.TRUE;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -82,16 +81,105 @@ public class ClientManager {
             providerFactory.setupClientDefaults(rep, client);
         }
 
-
         // remove default mappers if there is a template
         if (rep.getProtocolMappers() == null && rep.getClientTemplate() != null) {
             Set<ProtocolMapperModel> mappers = client.getProtocolMappers();
             for (ProtocolMapperModel mapper : mappers) client.removeProtocolMapper(mapper);
         }
+
         return client;
 
     }
 
+    public ClientModel createMultiTenantClient(KeycloakSession session, RealmModel realm, ClientRepresentation clientRepresentation, boolean addDefaultRoles) {
+        // MULTI_TENANT_CLIENT -> 'public=false', 'serviceAccountEnabled=true', has attribute 'multi.tenant.client'=true
+
+        //todo: add validation : mt client = 'public=false', 'serviceAccoutEnabled=true'
+
+        ClientModel mtClient = createClient(session, realm, clientRepresentation, addDefaultRoles);
+
+        mtClient.setServiceAccountsEnabled(true);
+        mtClient.setPublicClient(false);
+
+        // create service account
+        if (mtClient.isServiceAccountsEnabled()) {
+            enableServiceAccount(mtClient);
+        }
+
+        // master mt-client is created now!
+
+        // if client = mt_client and realm is master and other realms are already created
+        if (TRUE.equals(clientRepresentation.isMultiTenant()) && realm.getName().equals(Config.getAdminRealm())) {
+
+            // get the list of existing 'user' realms:
+            List<ClientModel> realmClients = realm.getClients();
+            if (realmClients != null) {
+                logger.debug("realm " + realm.getName()  + " clients! ");
+                for (ClientModel cli : realmClients) {
+                    logger.debug(" client: " + cli.getName());
+                }
+            }
+
+            List<RealmModel> realms = session.realms().getRealms();
+            for (RealmModel realmElement : realms) {
+
+                if (realmElement.getName().equals(Config.getAdminRealm()))
+                    continue;
+
+                // create copy clients in existing realm
+
+                //todo: consider creating new instance of the ClientRepresentation using only needed fields:
+
+                ClientRepresentation realmClientRep = new ClientRepresentation();
+                realmClientRep.setId(null);
+                realmClientRep.setName(clientRepresentation.getName());
+                realmClientRep.setClientId(clientRepresentation.getClientId());
+                realmClientRep.setPublicClient(false);
+                realmClientRep.setStandardFlowEnabled(false);
+
+                realmClientRep.setServiceAccountsEnabled(true);
+
+                //todo: should we flag all realm clients as multi-tenant also?
+                //realmClientRep.setMultiTenant(true);
+
+                // "authorizationServicesEnabled": true  -- creates resource server
+                realmClientRep.setAuthorizationServicesEnabled(true);
+
+                ClientModel realmClient = createClient(session, realmElement, realmClientRep, addDefaultRoles);
+
+                if (Boolean.TRUE.equals(realmClientRep.getAuthorizationServicesEnabled())) {
+                    RepresentationToModel.createResourceServer(realmClient, session, true);
+                }
+
+                //find the appropriate role from "{realm}-realm" master client
+                RealmModel adminRealm = realmManager.getRealm(Config.getAdminRealm());
+
+                //RoleModel adminRole = adminRealm.getRole(AdminRoles.ADMIN);
+                String realmClientId = realmElement.getName() + "-realm";
+                ClientModel realmRelatedClient = adminRealm.getClientByClientId(realmClientId);
+                RoleModel manageAuthorizationClientRole = realmRelatedClient.getRole("manage-authorization");
+
+                //and add it to the Service Account client roles ot the created master mt-client
+
+                // Application role may already exists (for example if it is defaultRole)
+                // RoleRepresentation roleRep = manageAuthorizationClientRole.toRep();
+                // RoleModel role = roleRep.getId() != null ? mtClient.addRole(roleRep.getId(), roleRep.getName()) : mtClient.addRole(roleRep.getName());
+                // role.setDescription(roleRep.getDescription());
+                // if (roleRep.getAttributes() != null) {
+                //     roleRep.getAttributes().forEach((key, value) -> role.setAttribute(key, value));
+                // }
+
+                //todo: how to get serviceAccount userModel?
+                UserModel saUser = realmManager.getSession().users().getServiceAccount(mtClient);
+
+                saUser.grantRole(manageAuthorizationClientRole);
+            }
+
+        }
+
+        return mtClient;
+
+    }
 
     public boolean removeClient(RealmModel realm, ClientModel client) {
         if (realm.removeClient(client.getId())) {

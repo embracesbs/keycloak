@@ -187,7 +187,9 @@ public class ClientsResource {
         }
 
         try {
-            ClientModel clientModel = ClientManager.createClient(session, realm, rep, true);
+            ClientModel clientModel = rep.isMultiTenant()
+                    ? new ClientManager(new RealmManager(session)).createMultiTenantClient(session, realm, rep, true)
+                    : ClientManager.createClient(session, realm, rep, true);
 
             if (TRUE.equals(rep.isServiceAccountsEnabled())) {
                 UserModel serviceAccount = session.users().getServiceAccount(clientModel);

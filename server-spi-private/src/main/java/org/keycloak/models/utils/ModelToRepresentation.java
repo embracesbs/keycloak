@@ -641,6 +641,7 @@ public class ModelToRepresentation {
         rep.setFullScopeAllowed(clientModel.isFullScopeAllowed());
         rep.setBearerOnly(clientModel.isBearerOnly());
         rep.setConsentRequired(clientModel.isConsentRequired());
+        rep.setMultiTenant(clientModel.isMultiTenant());
         rep.setStandardFlowEnabled(clientModel.isStandardFlowEnabled());
         rep.setImplicitFlowEnabled(clientModel.isImplicitFlowEnabled());
         rep.setDirectAccessGrantsEnabled(clientModel.isDirectAccessGrantsEnabled());

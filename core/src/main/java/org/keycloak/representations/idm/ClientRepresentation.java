@@ -51,6 +51,7 @@ public class ClientRepresentation {
     protected Boolean directAccessGrantsEnabled;
     protected Boolean serviceAccountsEnabled;
     protected Boolean authorizationServicesEnabled;
+    protected Boolean multiTenant;
     @Deprecated
     protected Boolean directGrantsOnly;
     protected Boolean publicClient;
@@ -273,6 +274,14 @@ public class ClientRepresentation {
 
     public void setAuthorizationServicesEnabled(Boolean authorizationServicesEnabled) {
         this.authorizationServicesEnabled = authorizationServicesEnabled;
+    }
+
+    public Boolean isMultiTenant() {
+        return multiTenant != null ? multiTenant : Boolean.FALSE;
+    }
+
+    public void setMultiTenant(Boolean multiTenant) {
+        this.multiTenant = multiTenant;
     }
 
     @Deprecated
