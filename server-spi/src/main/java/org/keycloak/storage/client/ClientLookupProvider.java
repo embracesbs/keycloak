@@ -31,4 +31,5 @@ public interface ClientLookupProvider {
     ClientModel getClientById(String id, RealmModel realm);
     ClientModel getClientByClientId(String clientId, RealmModel realm);
     List<ClientModel> searchClientsByClientId(String clientId, Integer firstResult, Integer maxResults, RealmModel realm);
+    List<ClientModel> getClientsByAttribute(RealmModel realm, String attributeName, String attributeValue);
 }

@@ -691,6 +691,18 @@ public class JpaRealmProvider implements RealmProvider {
         return results.stream().map(id -> session.realms().getClientById(id, realm)).collect(Collectors.toList());
     }
 
+    public List<ClientModel> getClientsByAttribute(RealmModel realm, String attributeName, String attributeValue) {
+        TypedQuery<String> query = em.createNamedQuery("getClientsByAttributeName", String.class);
+
+        query.setParameter("realm", realm.getId());
+        query.setParameter("name", attributeName);
+        query.setParameter("value", attributeValue);
+
+        List<String> results = query.getResultList();
+        if (results.isEmpty()) return Collections.EMPTY_LIST;
+        return results.stream().map(id -> session.realms().getClientById(id, realm)).collect(Collectors.toList());
+    }
+
     @Override
     public boolean removeClient(String id, RealmModel realm) {
         final ClientModel client = getClientById(id, realm);

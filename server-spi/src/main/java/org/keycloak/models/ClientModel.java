@@ -34,6 +34,11 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
     String PUBLIC_KEY = "publicKey";
     String X509CERTIFICATE = "X509Certificate";
 
+    // MULTI-TENANCY RELATED ATTRIBUTES
+
+    String MULTI_TENANT = "multi.tenant.client";
+    String MULTI_TENANT_SERVICE_ACCOUNT_ROLES = "multi.tenant.service.account.roles";
+
     void updateClient();
 
     /**
@@ -231,4 +236,19 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
         }
         return consentScreenText;
     }
+
+    default boolean getMultiTenant() {
+        String multiTenantAttribute = getAttribute(MULTI_TENANT);
+        return multiTenantAttribute==null ? false : Boolean.parseBoolean(multiTenantAttribute);
+    }
+
+//    default void setMultiTenant(boolean multiTenant) {
+//        setAttribute(MULTI_TENANT, String.valueOf(multiTenant));
+//    }
+
+    default String[] getMultiTenantServiceAccountRoles() {
+        String multiTenantAttribute = getAttribute(MULTI_TENANT_SERVICE_ACCOUNT_ROLES);
+        return multiTenantAttribute!=null ? multiTenantAttribute.split(",") : new String[0];
+    }
+
 }

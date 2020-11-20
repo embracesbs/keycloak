@@ -82,6 +82,11 @@ public class OpenshiftClientStorageProvider implements ClientStorageProvider {
     }
 
     @Override
+    public List<ClientModel> getClientsByAttribute(RealmModel realm, String attributeName, String attributeValue) {
+        return getClientsByAttribute(realm, attributeName, attributeValue);
+    }
+
+    @Override
     public void close() {
 
     }

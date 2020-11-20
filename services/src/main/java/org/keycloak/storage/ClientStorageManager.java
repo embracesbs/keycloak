@@ -164,6 +164,19 @@ public class ClientStorageManager implements ClientProvider {
     }
 
     @Override
+    public List<ClientModel> getClientsByAttribute(RealmModel realm, String attributeName, String attributeValue) {
+        List<ClientModel> clients = session.clientLocalStorage().getClientsByAttribute(realm,  attributeName, attributeValue);
+        if (clients != null) {
+            return clients;
+        }
+        for (ClientLookupProvider provider : getEnabledStorageProviders(session, realm, ClientLookupProvider.class)) {
+            clients = provider.getClientsByAttribute(realm,  attributeName, attributeValue);
+            if (clients != null) return clients;
+        }
+        return null;
+    }
+
+    @Override
     public ClientModel addClient(RealmModel realm, String clientId) {
         return session.clientLocalStorage().addClient(realm, clientId);
     }
