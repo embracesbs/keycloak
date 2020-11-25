@@ -19,7 +19,14 @@
 
 package org.keycloak.services.validation;
 
+import org.keycloak.models.ClientModel;
+import org.keycloak.models.RealmModel;
 import org.keycloak.representations.idm.ClientRepresentation;
+
+import java.util.Map;
+
+import static java.lang.Boolean.TRUE;
+import static java.lang.Boolean.FALSE;
 
 /**
  * @author Vaclav Muzikar <vmuzikar@redhat.com>
@@ -47,6 +54,35 @@ public class ClientValidator {
         if (client.getRootUrl() != null && client.getRootUrl().contains("#")) {
             messages.add("rootUrl", "Root URL must not contain an URL fragment", "clientRootURLFragmentError");
             isValid = false;
+        }
+
+        //multi-tenant client validation
+        Map<String, String> attributes = client.getAttributes();
+        if (attributes != null
+                && attributes.containsKey(ClientModel.MULTI_TENANT)
+                && TRUE.equals(Boolean.parseBoolean(attributes.get(ClientModel.MULTI_TENANT)))) {
+
+            //todo: add validation : mt client = 'public=false', 'serviceAccountEnabled=true', attribute 'multi.tenant.service.account.roles' should exist
+            //should NOT be public!
+            if (TRUE.equals(client.isPublicClient())) {
+                messages.add("multi-tenant-publicClient", "Multi-tenant client should NOT be public!", "multiTenantClientPublicError");
+                isValid = false;
+            }
+
+            //should have service-account enabled!
+            if (FALSE.equals(client.isServiceAccountsEnabled())) {
+                messages.add("multi-tenant-service-accounts-enabled", "Multi-tenant client service account should be enabled!", "multiTenantServiceAccountEnableError");
+                isValid = false;
+            }
+
+            // should exist attribute 'multi.tenant.service.account.roles'!
+            if (FALSE.equals(attributes.containsKey(ClientModel.MULTI_TENANT_SERVICE_ACCOUNT_ROLES))
+                    || attributes.get(ClientModel.MULTI_TENANT_SERVICE_ACCOUNT_ROLES) == null
+                    || attributes.get(ClientModel.MULTI_TENANT_SERVICE_ACCOUNT_ROLES).isEmpty()) {
+                messages.add("multi-tenant-service-account-roles-attribute", "Multi-tenant client attribute 'multi.tenant.service.account.roles' should be set!", "multiTenantServiceAccountRolesAttributeEnableError");
+                isValid = false;
+            }
+
         }
 
         return isValid;

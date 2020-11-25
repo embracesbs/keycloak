@@ -19,6 +19,7 @@ package org.keycloak.services.resources.admin;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
+import org.keycloak.Config;
 import org.keycloak.authorization.admin.AuthorizationService;
 import org.keycloak.events.Errors;
 import org.keycloak.events.admin.OperationType;
@@ -189,11 +190,13 @@ public class ClientsResource {
         try {
             ClientModel clientModel = ClientManager.createClient(session, realm, rep, true);
 
+            ClientManager manager = new ClientManager(new RealmManager(session));
+
             if (TRUE.equals(rep.isServiceAccountsEnabled())) {
                 UserModel serviceAccount = session.users().getServiceAccount(clientModel);
 
                 if (serviceAccount == null) {
-                    new ClientManager(new RealmManager(session)).enableServiceAccount(clientModel);
+                    manager.enableServiceAccount(clientModel);
                 }
             }
 
@@ -209,6 +212,12 @@ public class ClientsResource {
                 if (authorizationSettings != null) {
                     authorizationService.resourceServer().importSettings(authorizationSettings);
                 }
+            }
+
+            // is client is multi tenant client in 'master' realm ... do the mt voodoo ...
+            if (TRUE.equals(manager.isMultiTenantClientRepresentation(rep))
+                    && realm.getName().equals(Config.getAdminRealm())) {
+                manager.createMultiTenantClientRelatedObjects(session, realm, clientModel, rep);
             }
 
             ClientValidationUtil.validate(session, clientModel, true, c -> {

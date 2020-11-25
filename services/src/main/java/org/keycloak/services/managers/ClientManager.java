@@ -18,18 +18,14 @@ package org.keycloak.services.managers;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import org.apache.commons.lang.SerializationUtils;
 import org.jboss.logging.Logger;
+import org.keycloak.Config;
 import org.keycloak.authentication.ClientAuthenticator;
 import org.keycloak.authentication.ClientAuthenticatorFactory;
 import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.common.util.Time;
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.ProtocolMapperModel;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserManager;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserSessionProvider;
+import org.keycloak.models.*;
 import org.keycloak.models.session.UserSessionPersisterProvider;
 import org.keycloak.models.utils.RepresentationToModel;
 import org.keycloak.protocol.LoginProtocol;
@@ -41,13 +37,11 @@ import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 
+import java.io.Serializable;
 import java.net.URI;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
+
+import static java.lang.Boolean.TRUE;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -82,7 +76,6 @@ public class ClientManager {
             providerFactory.setupClientDefaults(rep, client);
         }
 
-
         // remove default mappers if there is a template
         if (rep.getProtocolMappers() == null && rep.getClientTemplate() != null) {
             Set<ProtocolMapperModel> mappers = client.getProtocolMappers();
@@ -92,6 +85,86 @@ public class ClientManager {
 
     }
 
+    // MULTI_TENANT_CLIENT =>
+    // 'public=false',
+    // 'serviceAccountEnabled=true',
+    // has attribute 'multi.tenant.client'=true,
+    // has attribute "multi.tenant.service.account.roles"
+    public boolean createMultiTenantClientRelatedObjects(KeycloakSession session, RealmModel adminRealm, ClientModel mtClient, ClientRepresentation clientRepresentation) {
+
+            List<RealmModel> realms = session.realms().getRealms();
+
+            for (RealmModel realmElement : realms) {
+
+                // exclude 'master'
+                if (realmElement.getName().equals(Config.getAdminRealm()))
+                    continue;
+
+                // create copy clients in realm
+                //todo: consider creating new instance of the ClientRepresentation using only needed fields:
+
+                // deep clone the rep object
+                ClientRepresentation realmClientRep = getSerializableDeepCopy(clientRepresentation);
+                realmClientRep.setId(null);
+
+                ClientModel realmClient = createClient(session, realmElement, realmClientRep, true);
+
+                // get service account roles from attributes:
+                String[] serviceAccountRoles = mtClient.getMultiTenantServiceAccountRoles();
+
+                // determine if Authorization Service needs to be enabled!
+                if (TRUE.equals(realmClientRep.getAuthorizationServicesEnabled())
+                    || Arrays.stream(serviceAccountRoles).anyMatch(r -> r.contains("-authorization"))) {
+                    RepresentationToModel.createResourceServer(realmClient, session, true);
+                }
+
+                // we need admin realm here:
+                //RealmModel adminRealm = realmManager.getRealm(Config.getAdminRealm()); //for the CreateRealm method
+                //RoleModel adminRole = adminRealm.getRole(AdminRoles.ADMIN);
+
+                // find the appropriate role from "{realm}-realm" client from master
+                String realmClientId = realmElement.getName() + "-realm";
+                ClientModel realmRelatedClient = adminRealm.getClientByClientId(realmClientId);
+
+                // find service account user for this mt-client
+                UserModel saUser = realmManager.getSession().users().getServiceAccount(mtClient);
+
+                // and add it to the Service Account client roles of the master mt-client
+                for (String roleName : serviceAccountRoles) {
+                    RoleModel foundRole = realmRelatedClient.getRole(roleName);
+
+                    if (foundRole == null) {
+                        //log not found role!
+                        logger.errorf("multi-tenant client service account -> role with name '%s' not found!", roleName);
+                        continue;
+                    }
+
+                    saUser.grantRole(foundRole);
+                }
+            }
+
+        return TRUE;
+
+    }
+
+    private <T extends Serializable> T getSerializableDeepCopy(T serializable) {
+        if (serializable != null) {
+            return (T) SerializationUtils.clone(serializable);
+        }
+        return null;
+
+//        T realmClientRepOm = null;
+//        ObjectMapper objectMapper = new ObjectMapper();
+//        try {
+//            realmClientRepOm = objectMapper.readValue(objectMapper.writeValueAsString(clientRepresentation), (Class<T>) ((ParameterizedType)clientRepresentation.getClass().getGenericSuperclass()).getClass());
+//        } catch (JsonMappingException e) {
+//            logger.debug("getClientRepresentationDeepCopy mapping error... ", e);
+//        } catch (JsonProcessingException e) {
+//            logger.debug("getClientRepresentationDeepCopy processing error... ", e);
+//        }
+//        return realmClientRepOm;
+
+    }
 
     public boolean removeClient(RealmModel realm, ClientModel client) {
         if (realm.removeClient(client.getId())) {
@@ -359,6 +432,15 @@ public class ClientManager {
         String clientAuthenticator = client.getClientAuthenticatorType();
         ClientAuthenticatorFactory authenticator = (ClientAuthenticatorFactory) realmManager.getSession().getKeycloakSessionFactory().getProviderFactory(ClientAuthenticator.class, clientAuthenticator);
         return authenticator.getAdapterConfiguration(client);
+    }
+
+    public Boolean isMultiTenantClientRepresentation(ClientRepresentation clientRep) {
+        Map<String, String> attributes = clientRep.getAttributes();
+        if (attributes != null && attributes.containsKey(ClientModel.MULTI_TENANT)) {
+            Boolean isMultiTenant = Boolean.parseBoolean(attributes.get(ClientModel.MULTI_TENANT));
+            return isMultiTenant != null ? isMultiTenant : Boolean.FALSE;
+        }
+        return Boolean.FALSE;
     }
 
 }
