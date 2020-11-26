@@ -118,27 +118,28 @@ public class ClientManager {
                     RepresentationToModel.createResourceServer(realmClient, session, true);
                 }
 
+                //todo: move this to CreateRealm method
                 // we need admin realm here:
                 //RealmModel adminRealm = realmManager.getRealm(Config.getAdminRealm()); //for the CreateRealm method
                 //RoleModel adminRole = adminRealm.getRole(AdminRoles.ADMIN);
 
-                // find the appropriate role from "{realm}-realm" client from master
-                String realmClientId = realmElement.getName() + "-realm";
-                ClientModel realmRelatedClient = adminRealm.getClientByClientId(realmClientId);
+                // find master admin apps by name "{realmName}-realm"
+                String masterAdminAppName = realmElement.getName() + "-realm";
+                ClientModel masterAdminApp = adminRealm.getClientByClientId(masterAdminAppName);
 
                 // find service account user for this mt-client
                 UserModel saUser = realmManager.getSession().users().getServiceAccount(mtClient);
 
-                // and add it to the Service Account client roles of the master mt-client
                 for (String roleName : serviceAccountRoles) {
-                    RoleModel foundRole = realmRelatedClient.getRole(roleName);
+                    // find the appropriate role from master admin app
+                    RoleModel foundRole = masterAdminApp.getRole(roleName);
 
                     if (foundRole == null) {
                         //log not found role!
                         logger.errorf("multi-tenant client service account -> role with name '%s' not found!", roleName);
                         continue;
                     }
-
+                    // and role to the Service Account user of the master mt-client
                     saUser.grantRole(foundRole);
                 }
             }
@@ -153,6 +154,7 @@ public class ClientManager {
         }
         return null;
 
+        //todo: cleanup !
 //        T realmClientRepOm = null;
 //        ObjectMapper objectMapper = new ObjectMapper();
 //        try {

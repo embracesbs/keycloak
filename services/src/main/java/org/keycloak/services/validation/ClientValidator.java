@@ -19,10 +19,13 @@
 
 package org.keycloak.services.validation;
 
+import org.keycloak.models.AdminRoles;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.RealmModel;
 import org.keycloak.representations.idm.ClientRepresentation;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static java.lang.Boolean.TRUE;
@@ -56,22 +59,21 @@ public class ClientValidator {
             isValid = false;
         }
 
-        //multi-tenant client validation
+        // multi-tenant client validation
         Map<String, String> attributes = client.getAttributes();
         if (attributes != null
                 && attributes.containsKey(ClientModel.MULTI_TENANT)
                 && TRUE.equals(Boolean.parseBoolean(attributes.get(ClientModel.MULTI_TENANT)))) {
 
-            //todo: add validation : mt client = 'public=false', 'serviceAccountEnabled=true', attribute 'multi.tenant.service.account.roles' should exist
-            //should NOT be public!
+            // should NOT be public!
             if (TRUE.equals(client.isPublicClient())) {
-                messages.add("multi-tenant-publicClient", "Multi-tenant client should NOT be public!", "multiTenantClientPublicError");
+                messages.add("multi-tenant-publicClient", "Multi-tenant client validation: should NOT be public!", "multiTenantClientPublicError");
                 isValid = false;
             }
 
-            //should have service-account enabled!
+            // should have service-account enabled!
             if (FALSE.equals(client.isServiceAccountsEnabled())) {
-                messages.add("multi-tenant-service-accounts-enabled", "Multi-tenant client service account should be enabled!", "multiTenantServiceAccountEnableError");
+                messages.add("multi-tenant-service-accounts-enabled", "Multi-tenant client validation: service account should be enabled!", "multiTenantServiceAccountEnableError");
                 isValid = false;
             }
 
@@ -79,8 +81,21 @@ public class ClientValidator {
             if (FALSE.equals(attributes.containsKey(ClientModel.MULTI_TENANT_SERVICE_ACCOUNT_ROLES))
                     || attributes.get(ClientModel.MULTI_TENANT_SERVICE_ACCOUNT_ROLES) == null
                     || attributes.get(ClientModel.MULTI_TENANT_SERVICE_ACCOUNT_ROLES).isEmpty()) {
-                messages.add("multi-tenant-service-account-roles-attribute", "Multi-tenant client attribute 'multi.tenant.service.account.roles' should be set!", "multiTenantServiceAccountRolesAttributeEnableError");
+                messages.add("multi-tenant-service-account-roles-attribute", "Multi-tenant client validation: attribute 'multi.tenant.service.account.roles' should be set!", "multiTenantServiceAccountRolesAttributeEnableError");
                 isValid = false;
+            }
+
+            // should be valid admin role names
+            String[] roleAttributes = client.getAttributes()
+                    .get(ClientModel.MULTI_TENANT_SERVICE_ACCOUNT_ROLES)
+                    .replaceAll("\\s+", "")
+                    .split(",");
+
+            for (String ra : roleAttributes) {
+                if (Arrays.stream(AdminRoles.ALL_REALM_ROLES).noneMatch(r -> r.equals(ra))) {
+                    messages.add("multi-tenant-service-account-roles-attribute", String.format("Multi-tenant client validation: un-existent admin role name '%s'", ra), "multiTenantServiceAccountRolesAttributeNonExistentError");
+                    isValid = false;
+                }
             }
 
         }

@@ -17,10 +17,11 @@
 
 package org.keycloak.models;
 
+import org.keycloak.common.util.ObjectUtil;
+
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
-
-import org.keycloak.common.util.ObjectUtil;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -239,16 +240,17 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
 
     default boolean getMultiTenant() {
         String multiTenantAttribute = getAttribute(MULTI_TENANT);
-        return multiTenantAttribute==null ? false : Boolean.parseBoolean(multiTenantAttribute);
+        return Boolean.parseBoolean(multiTenantAttribute);
     }
-
-//    default void setMultiTenant(boolean multiTenant) {
-//        setAttribute(MULTI_TENANT, String.valueOf(multiTenant));
-//    }
 
     default String[] getMultiTenantServiceAccountRoles() {
         String multiTenantAttribute = getAttribute(MULTI_TENANT_SERVICE_ACCOUNT_ROLES);
-        return multiTenantAttribute!=null ? multiTenantAttribute.split(",") : new String[0];
+        if (multiTenantAttribute!=null){
+            String[] splitter = multiTenantAttribute.split(",");
+            Arrays.stream(splitter).map(String::trim).toArray(unused -> splitter);
+            return splitter;
+        }
+        return new String[0];
     }
 
 }
