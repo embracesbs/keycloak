@@ -186,9 +186,6 @@ public class ClientStorageManager implements ClientProvider {
         return session.clientLocalStorage().addClient(realm, id, clientId);
     }
 
-
-
-
     @Override
     public List<ClientModel> getClients(RealmModel realm, Integer firstResult, Integer maxResults) {
        return session.clientLocalStorage().getClients(realm, firstResult, maxResults);

@@ -1267,85 +1267,85 @@ public class RepresentationToModel {
      * Does not create scope or role mappings!
      *
      * @param realm
-     * @param resourceRep
+     * @param clientRep
      * @return
      */
-    public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep, boolean addDefaultRoles) {
-        return createClient(session, realm, resourceRep, addDefaultRoles, null);
+    public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation clientRep, boolean addDefaultRoles) {
+        return createClient(session, realm, clientRep, addDefaultRoles, null);
     }
 
-    private static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep, boolean addDefaultRoles, Map<String, String> mappedFlows) {
-        logger.debugv("Create client: {0}", resourceRep.getClientId());
+    private static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation clientRep, boolean addDefaultRoles, Map<String, String> mappedFlows) {
+        logger.debugv("Create client: {0}", clientRep.getClientId());
 
-        ClientModel client = resourceRep.getId() != null ? realm.addClient(resourceRep.getId(), resourceRep.getClientId()) : realm.addClient(resourceRep.getClientId());
-        if (resourceRep.getName() != null) client.setName(resourceRep.getName());
-        if (resourceRep.getDescription() != null) client.setDescription(resourceRep.getDescription());
-        if (resourceRep.isEnabled() != null) client.setEnabled(resourceRep.isEnabled());
-        if (resourceRep.isAlwaysDisplayInConsole() != null) client.setAlwaysDisplayInConsole(resourceRep.isAlwaysDisplayInConsole());
-        client.setManagementUrl(resourceRep.getAdminUrl());
-        if (resourceRep.isSurrogateAuthRequired() != null)
-            client.setSurrogateAuthRequired(resourceRep.isSurrogateAuthRequired());
-        if (resourceRep.getRootUrl() != null) client.setRootUrl(resourceRep.getRootUrl());
-        if (resourceRep.getBaseUrl() != null) client.setBaseUrl(resourceRep.getBaseUrl());
-        if (resourceRep.isBearerOnly() != null) client.setBearerOnly(resourceRep.isBearerOnly());
-        if (resourceRep.isConsentRequired() != null) client.setConsentRequired(resourceRep.isConsentRequired());
+        ClientModel client = clientRep.getId() != null ? realm.addClient(clientRep.getId(), clientRep.getClientId()) : realm.addClient(clientRep.getClientId());
+        if (clientRep.getName() != null) client.setName(clientRep.getName());
+        if (clientRep.getDescription() != null) client.setDescription(clientRep.getDescription());
+        if (clientRep.isEnabled() != null) client.setEnabled(clientRep.isEnabled());
+        if (clientRep.isAlwaysDisplayInConsole() != null) client.setAlwaysDisplayInConsole(clientRep.isAlwaysDisplayInConsole());
+        client.setManagementUrl(clientRep.getAdminUrl());
+        if (clientRep.isSurrogateAuthRequired() != null)
+            client.setSurrogateAuthRequired(clientRep.isSurrogateAuthRequired());
+        if (clientRep.getRootUrl() != null) client.setRootUrl(clientRep.getRootUrl());
+        if (clientRep.getBaseUrl() != null) client.setBaseUrl(clientRep.getBaseUrl());
+        if (clientRep.isBearerOnly() != null) client.setBearerOnly(clientRep.isBearerOnly());
+        if (clientRep.isConsentRequired() != null) client.setConsentRequired(clientRep.isConsentRequired());
 
         // Backwards compatibility only
-        if (resourceRep.isDirectGrantsOnly() != null) {
+        if (clientRep.isDirectGrantsOnly() != null) {
             logger.warn("Using deprecated 'directGrantsOnly' configuration in JSON representation. It will be removed in future versions");
-            client.setStandardFlowEnabled(!resourceRep.isDirectGrantsOnly());
-            client.setDirectAccessGrantsEnabled(resourceRep.isDirectGrantsOnly());
+            client.setStandardFlowEnabled(!clientRep.isDirectGrantsOnly());
+            client.setDirectAccessGrantsEnabled(clientRep.isDirectGrantsOnly());
         }
 
-        if (resourceRep.isStandardFlowEnabled() != null)
-            client.setStandardFlowEnabled(resourceRep.isStandardFlowEnabled());
-        if (resourceRep.isImplicitFlowEnabled() != null)
-            client.setImplicitFlowEnabled(resourceRep.isImplicitFlowEnabled());
-        if (resourceRep.isDirectAccessGrantsEnabled() != null)
-            client.setDirectAccessGrantsEnabled(resourceRep.isDirectAccessGrantsEnabled());
-        if (resourceRep.isServiceAccountsEnabled() != null)
-            client.setServiceAccountsEnabled(resourceRep.isServiceAccountsEnabled());
+        if (clientRep.isStandardFlowEnabled() != null)
+            client.setStandardFlowEnabled(clientRep.isStandardFlowEnabled());
+        if (clientRep.isImplicitFlowEnabled() != null)
+            client.setImplicitFlowEnabled(clientRep.isImplicitFlowEnabled());
+        if (clientRep.isDirectAccessGrantsEnabled() != null)
+            client.setDirectAccessGrantsEnabled(clientRep.isDirectAccessGrantsEnabled());
+        if (clientRep.isServiceAccountsEnabled() != null)
+            client.setServiceAccountsEnabled(clientRep.isServiceAccountsEnabled());
 
-        if (resourceRep.isPublicClient() != null) client.setPublicClient(resourceRep.isPublicClient());
-        if (resourceRep.isFrontchannelLogout() != null)
-            client.setFrontchannelLogout(resourceRep.isFrontchannelLogout());
+        if (clientRep.isPublicClient() != null) client.setPublicClient(clientRep.isPublicClient());
+        if (clientRep.isFrontchannelLogout() != null)
+            client.setFrontchannelLogout(clientRep.isFrontchannelLogout());
 
         // set defaults to openid-connect if no protocol specified
-        if (resourceRep.getProtocol() != null) {
-            client.setProtocol(resourceRep.getProtocol());
+        if (clientRep.getProtocol() != null) {
+            client.setProtocol(clientRep.getProtocol());
         } else {
             client.setProtocol(OIDC);
         }
-        if (resourceRep.getNodeReRegistrationTimeout() != null) {
-            client.setNodeReRegistrationTimeout(resourceRep.getNodeReRegistrationTimeout());
+        if (clientRep.getNodeReRegistrationTimeout() != null) {
+            client.setNodeReRegistrationTimeout(clientRep.getNodeReRegistrationTimeout());
         } else {
             client.setNodeReRegistrationTimeout(-1);
         }
 
-        if (resourceRep.getNotBefore() != null) {
-            client.setNotBefore(resourceRep.getNotBefore());
+        if (clientRep.getNotBefore() != null) {
+            client.setNotBefore(clientRep.getNotBefore());
         }
 
-        if (resourceRep.getClientAuthenticatorType() != null) {
-            client.setClientAuthenticatorType(resourceRep.getClientAuthenticatorType());
+        if (clientRep.getClientAuthenticatorType() != null) {
+            client.setClientAuthenticatorType(clientRep.getClientAuthenticatorType());
         } else {
             client.setClientAuthenticatorType(KeycloakModelUtils.getDefaultClientAuthenticatorType());
         }
 
-        client.setSecret(resourceRep.getSecret());
+        client.setSecret(clientRep.getSecret());
         if (client.getSecret() == null) {
             KeycloakModelUtils.generateSecret(client);
         }
 
-        if (resourceRep.getAttributes() != null) {
-            for (Map.Entry<String, String> entry : resourceRep.getAttributes().entrySet()) {
+        if (clientRep.getAttributes() != null) {
+            for (Map.Entry<String, String> entry : clientRep.getAttributes().entrySet()) {
                 client.setAttribute(entry.getKey(), entry.getValue());
             }
         }
 
 
-        if (resourceRep.getAuthenticationFlowBindingOverrides() != null) {
-            for (Map.Entry<String, String> entry : resourceRep.getAuthenticationFlowBindingOverrides().entrySet()) {
+        if (clientRep.getAuthenticationFlowBindingOverrides() != null) {
+            for (Map.Entry<String, String> entry : clientRep.getAuthenticationFlowBindingOverrides().entrySet()) {
                 if (entry.getValue() == null || entry.getValue().trim().equals("")) {
                     continue;
                 } else {
@@ -1363,21 +1363,21 @@ public class RepresentationToModel {
         }
 
 
-        if (resourceRep.getRedirectUris() != null) {
-            for (String redirectUri : resourceRep.getRedirectUris()) {
+        if (clientRep.getRedirectUris() != null) {
+            for (String redirectUri : clientRep.getRedirectUris()) {
                 client.addRedirectUri(redirectUri);
             }
         }
-        if (resourceRep.getWebOrigins() != null) {
-            for (String webOrigin : resourceRep.getWebOrigins()) {
-                logger.debugv("Client: {0} webOrigin: {1}", resourceRep.getClientId(), webOrigin);
+        if (clientRep.getWebOrigins() != null) {
+            for (String webOrigin : clientRep.getWebOrigins()) {
+                logger.debugv("Client: {0} webOrigin: {1}", clientRep.getClientId(), webOrigin);
                 client.addWebOrigin(webOrigin);
             }
         } else {
             // add origins from redirect uris
-            if (resourceRep.getRedirectUris() != null) {
+            if (clientRep.getRedirectUris() != null) {
                 Set<String> origins = new HashSet<String>();
-                for (String redirectUri : resourceRep.getRedirectUris()) {
+                for (String redirectUri : clientRep.getRedirectUris()) {
                     logger.debugv("add redirect-uri to origin: {0}", redirectUri);
                     if (redirectUri.startsWith("http")) {
                         String origin = UriUtils.getOrigin(redirectUri);
@@ -1391,23 +1391,23 @@ public class RepresentationToModel {
             }
         }
 
-        if (resourceRep.getRegisteredNodes() != null) {
-            for (Map.Entry<String, Integer> entry : resourceRep.getRegisteredNodes().entrySet()) {
+        if (clientRep.getRegisteredNodes() != null) {
+            for (Map.Entry<String, Integer> entry : clientRep.getRegisteredNodes().entrySet()) {
                 client.registerNode(entry.getKey(), entry.getValue());
             }
         }
 
-        if (addDefaultRoles && resourceRep.getDefaultRoles() != null) {
-            client.updateDefaultRoles(resourceRep.getDefaultRoles());
+        if (addDefaultRoles && clientRep.getDefaultRoles() != null) {
+            client.updateDefaultRoles(clientRep.getDefaultRoles());
         }
 
 
-        if (resourceRep.getProtocolMappers() != null) {
+        if (clientRep.getProtocolMappers() != null) {
             // first, remove all default/built in mappers
             Set<ProtocolMapperModel> mappers = client.getProtocolMappers();
             for (ProtocolMapperModel mapper : mappers) client.removeProtocolMapper(mapper);
 
-            for (ProtocolMapperRepresentation mapper : resourceRep.getProtocolMappers()) {
+            for (ProtocolMapperRepresentation mapper : clientRep.getProtocolMappers()) {
                 client.addProtocolMapper(toModel(mapper));
             }
 
@@ -1415,12 +1415,12 @@ public class RepresentationToModel {
 
         }
 
-        if (resourceRep.getClientTemplate() != null) {
-            String clientTemplateName = KeycloakModelUtils.convertClientScopeName(resourceRep.getClientTemplate());
+        if (clientRep.getClientTemplate() != null) {
+            String clientTemplateName = KeycloakModelUtils.convertClientScopeName(clientRep.getClientTemplate());
             addClientScopeToClient(realm, client, clientTemplateName, true);
         }
 
-        if (resourceRep.getDefaultClientScopes() != null || resourceRep.getOptionalClientScopes() != null) {
+        if (clientRep.getDefaultClientScopes() != null || clientRep.getOptionalClientScopes() != null) {
             // First remove all default/built in client scopes
             for (ClientScopeModel clientScope : client.getClientScopes(true, false).values()) {
                 client.removeClientScope(clientScope);
@@ -1432,25 +1432,25 @@ public class RepresentationToModel {
             }
         }
 
-        if (resourceRep.getDefaultClientScopes() != null) {
-            for (String clientScopeName : resourceRep.getDefaultClientScopes()) {
+        if (clientRep.getDefaultClientScopes() != null) {
+            for (String clientScopeName : clientRep.getDefaultClientScopes()) {
                 addClientScopeToClient(realm, client, clientScopeName, true);
             }
         }
-        if (resourceRep.getOptionalClientScopes() != null) {
-            for (String clientScopeName : resourceRep.getOptionalClientScopes()) {
+        if (clientRep.getOptionalClientScopes() != null) {
+            for (String clientScopeName : clientRep.getOptionalClientScopes()) {
                 addClientScopeToClient(realm, client, clientScopeName, false);
             }
         }
 
-        if (resourceRep.isFullScopeAllowed() != null) {
-            client.setFullScopeAllowed(resourceRep.isFullScopeAllowed());
+        if (clientRep.isFullScopeAllowed() != null) {
+            client.setFullScopeAllowed(clientRep.isFullScopeAllowed());
         } else {
             client.setFullScopeAllowed(!client.isConsentRequired());
         }
 
         client.updateClient();
-        resourceRep.setId(client.getId());
+        clientRep.setId(client.getId());
 
         return client;
     }

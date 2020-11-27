@@ -91,13 +91,12 @@ public class ClientValidator {
                     .replaceAll("\\s+", "")
                     .split(",");
 
-            for (String ra : roleAttributes) {
-                if (Arrays.stream(AdminRoles.ALL_REALM_ROLES).noneMatch(r -> r.equals(ra))) {
-                    messages.add("multi-tenant-service-account-roles-attribute", String.format("Multi-tenant client validation: un-existent admin role name '%s'", ra), "multiTenantServiceAccountRolesAttributeNonExistentError");
+            for (String role : roleAttributes) {
+                if (Arrays.stream(AdminRoles.ALL_REALM_ROLES).noneMatch(r -> r.equals(role))) {
+                    messages.add("multi-tenant-service-account-roles-attribute", String.format("Multi-tenant client validation: un-existent admin role name '%s'", role), "multiTenantServiceAccountRolesAttributeNonExistentError");
                     isValid = false;
                 }
             }
-
         }
 
         return isValid;

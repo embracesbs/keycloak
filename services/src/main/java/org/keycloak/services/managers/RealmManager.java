@@ -16,50 +16,30 @@
  */
 package org.keycloak.services.managers;
 
+import org.jboss.logging.Logger;
 import org.keycloak.Config;
-import org.keycloak.common.Profile;
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.migration.MigrationModelManager;
-import org.keycloak.models.AccountRoles;
-import org.keycloak.models.AdminRoles;
-import org.keycloak.models.BrowserSecurityHeaders;
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.Constants;
-import org.keycloak.models.ImpersonationConstants;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.OTPPolicy;
-import org.keycloak.models.ProtocolMapperModel;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.RealmProvider;
-import org.keycloak.models.RoleModel;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserSessionProvider;
+import org.keycloak.models.*;
 import org.keycloak.models.session.UserSessionPersisterProvider;
-import org.keycloak.models.utils.DefaultAuthenticationFlows;
-import org.keycloak.models.utils.DefaultClientScopes;
-import org.keycloak.models.utils.DefaultRequiredActions;
-import org.keycloak.models.utils.KeycloakModelUtils;
-import org.keycloak.models.utils.RepresentationToModel;
+import org.keycloak.models.utils.*;
 import org.keycloak.protocol.ProtocolMapperUtils;
 import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolFactory;
 import org.keycloak.protocol.oidc.mappers.AudienceResolveProtocolMapper;
-import org.keycloak.representations.idm.ApplicationRepresentation;
-import org.keycloak.representations.idm.ClientRepresentation;
-import org.keycloak.representations.idm.ClientScopeRepresentation;
-import org.keycloak.representations.idm.OAuthClientRepresentation;
-import org.keycloak.representations.idm.RealmEventsConfigRepresentation;
-import org.keycloak.representations.idm.RealmRepresentation;
-import org.keycloak.representations.idm.RoleRepresentation;
+import org.keycloak.representations.idm.*;
+import org.keycloak.services.clientregistration.policy.DefaultClientRegistrationPolicies;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.storage.UserStorageProviderModel;
-import org.keycloak.services.clientregistration.policy.DefaultClientRegistrationPolicies;
+import org.keycloak.utils.ReservedCharValidator;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import org.keycloak.utils.ReservedCharValidator;
+
+import static java.lang.Boolean.TRUE;
 
 /**
  * Per request object
@@ -68,6 +48,7 @@ import org.keycloak.utils.ReservedCharValidator;
  * @version $Revision: 1 $
  */
 public class RealmManager {
+    private static final Logger logger = Logger.getLogger(RealmManager.class);
 
     protected KeycloakSession session;
     protected RealmProvider model;
@@ -120,6 +101,9 @@ public class RealmManager {
         createDefaultClientScopes(realm);
         setupAuthorizationServices(realm);
         setupClientRegistrations(realm);
+
+        // MULTI_TENANT CLIENT
+        setupMultiTenantClientRegistrations(realm);
 
         fireRealmPostCreate(realm);
 
@@ -563,7 +547,7 @@ public class RealmManager {
                     clientManager.enableServiceAccount(clientModel);
                 }
 
-                if (Boolean.TRUE.equals(client.getAuthorizationServicesEnabled())) {
+                if (TRUE.equals(client.getAuthorizationServicesEnabled())) {
                     RepresentationToModel.createResourceServer(clientModel, session, true);
                     if(!skipUserDependent) {
                         RepresentationToModel.importAuthorizationSettings(client, clientModel, session);
@@ -611,6 +595,8 @@ public class RealmManager {
         if (rep.getKeycloakVersion() != null) {
             MigrationModelManager.migrateImport(session, realm, rep, skipUserDependent);
         }
+
+        setupMultiTenantClientRegistrations(realm);
 
         fireRealmPostCreate(realm);
 
@@ -726,6 +712,60 @@ public class RealmManager {
 
     private void setupClientRegistrations(RealmModel realm) {
         DefaultClientRegistrationPolicies.addDefaultPolicies(realm);
+    }
+
+    private void setupMultiTenantClientRegistrations(RealmModel realm) {
+        // skip for admin (master) realm
+        if (Config.getAdminRealm().equals(realm.getId())) return;
+
+        // fetch multi-tenant clients from master
+        RealmModel adminRealm = model.getRealm(Config.getAdminRealm());
+        List<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttribute(adminRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+
+        if (multiTenantMasterClients == null || (long) multiTenantMasterClients.size() == 0) return;
+
+        for (ClientModel multiTenantClient : multiTenantMasterClients) {
+
+            ClientRepresentation adminMtClientRepresentation = ModelToRepresentation.toRepresentation(multiTenantClient, session);
+
+            ClientRepresentation mtClientRepLocal = ClientManager.deepCopy(adminMtClientRepresentation);
+
+            mtClientRepLocal.setId(null);
+            mtClientRepLocal.setProtocolMappers(null);
+            mtClientRepLocal.setDefaultClientScopes(null);
+            mtClientRepLocal.setOptionalClientScopes(null);
+
+            ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal, true);
+
+            // get service account roles from attributes:
+            String[] providedRoles = multiTenantClient.getMultiTenantServiceAccountRoles();
+
+            // determine if Authorization Service needs to be enabled!
+            if (TRUE.equals(mtClientRepLocal.getAuthorizationServicesEnabled())
+                    || Arrays.stream(providedRoles).anyMatch(r -> r.contains("-authorization"))) {
+                RepresentationToModel.createResourceServer(realmClient, session, true);
+            }
+
+            // find related master admin app by name "{realmName}-realm"
+            String masterAdminAppName = realm.getName() + "-realm";
+            ClientModel masterAdminApp = adminRealm.getClientByClientId(masterAdminAppName);
+
+            // find service account user for this mt-client
+            UserModel saUser = getSession().users().getServiceAccount(multiTenantClient);
+
+            for (String roleName : providedRoles) {
+                // find the appropriate role from master admin app
+                RoleModel foundRole = masterAdminApp.getRole(roleName);
+
+                if (foundRole == null) {
+                    //log not found role!
+                    logger.errorf("multi-tenant client service account -> role with name '%s' not found!", roleName);
+                    continue;
+                }
+                // and role to the Service Account user of the master mt-client
+                saUser.grantRole(foundRole);
+            }
+        }
     }
 
     private void fireRealmPostCreate(RealmModel realm) {

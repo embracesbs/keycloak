@@ -90,7 +90,7 @@ public class ClientManager {
     // 'serviceAccountEnabled=true',
     // has attribute 'multi.tenant.client'=true,
     // has attribute "multi.tenant.service.account.roles"
-    public boolean createMultiTenantClientRelatedObjects(KeycloakSession session, RealmModel adminRealm, ClientModel mtClient, ClientRepresentation clientRepresentation) {
+    public boolean setupMultiTenantClientRegistrations(KeycloakSession session, RealmModel adminRealm, ClientModel mtClient, ClientRepresentation clientRepresentation) {
 
             List<RealmModel> realms = session.realms().getRealms();
 
@@ -104,7 +104,7 @@ public class ClientManager {
                 //todo: consider creating new instance of the ClientRepresentation using only needed fields:
 
                 // deep clone the rep object
-                ClientRepresentation realmClientRep = getSerializableDeepCopy(clientRepresentation);
+                ClientRepresentation realmClientRep = deepCopy(clientRepresentation);
                 realmClientRep.setId(null);
 
                 ClientModel realmClient = createClient(session, realmElement, realmClientRep, true);
@@ -117,11 +117,6 @@ public class ClientManager {
                     || Arrays.stream(serviceAccountRoles).anyMatch(r -> r.contains("-authorization"))) {
                     RepresentationToModel.createResourceServer(realmClient, session, true);
                 }
-
-                //todo: move this to CreateRealm method
-                // we need admin realm here:
-                //RealmModel adminRealm = realmManager.getRealm(Config.getAdminRealm()); //for the CreateRealm method
-                //RoleModel adminRole = adminRealm.getRole(AdminRoles.ADMIN);
 
                 // find master admin apps by name "{realmName}-realm"
                 String masterAdminAppName = realmElement.getName() + "-realm";
@@ -148,24 +143,8 @@ public class ClientManager {
 
     }
 
-    private <T extends Serializable> T getSerializableDeepCopy(T serializable) {
-        if (serializable != null) {
-            return (T) SerializationUtils.clone(serializable);
-        }
-        return null;
-
-        //todo: cleanup !
-//        T realmClientRepOm = null;
-//        ObjectMapper objectMapper = new ObjectMapper();
-//        try {
-//            realmClientRepOm = objectMapper.readValue(objectMapper.writeValueAsString(clientRepresentation), (Class<T>) ((ParameterizedType)clientRepresentation.getClass().getGenericSuperclass()).getClass());
-//        } catch (JsonMappingException e) {
-//            logger.debug("getClientRepresentationDeepCopy mapping error... ", e);
-//        } catch (JsonProcessingException e) {
-//            logger.debug("getClientRepresentationDeepCopy processing error... ", e);
-//        }
-//        return realmClientRepOm;
-
+    public static <T extends Serializable> T deepCopy(T serializable) {
+        return serializable != null ? (T) SerializationUtils.clone(serializable) : null;
     }
 
     public boolean removeClient(RealmModel realm, ClientModel client) {

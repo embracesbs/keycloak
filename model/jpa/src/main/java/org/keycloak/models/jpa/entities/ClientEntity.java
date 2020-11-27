@@ -59,7 +59,7 @@ import java.util.Set;
         @NamedQuery(name="searchClientsByClientId", query="select client.id from ClientEntity client where lower(client.clientId) like lower(concat('%',:clientId,'%')) and client.realm.id = :realm order by client.clientId"),
         @NamedQuery(name="getRealmClientsCount", query="select count(client) from ClientEntity client where client.realm.id = :realm"),
         @NamedQuery(name="findClientByClientId", query="select client from ClientEntity client where client.clientId = :clientId and client.realm.id = :realm"),
-        @NamedQuery(name="getClientsByAttributeName", query="select client from ClientEntity client join client.attributes attr " +
+        @NamedQuery(name="getClientsByAttributeName", query="select client.id from ClientEntity client join client.attributes attr " +
                 "where client.realm.id = :realm and attr.name = :name and attr.value = :value")
 })
 public class ClientEntity {

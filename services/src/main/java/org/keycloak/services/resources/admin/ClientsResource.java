@@ -217,7 +217,7 @@ public class ClientsResource {
             // is client is multi tenant client in 'master' realm ... do the mt voodoo ...
             if (TRUE.equals(manager.isMultiTenantClientRepresentation(rep))
                     && realm.getName().equals(Config.getAdminRealm())) {
-                manager.createMultiTenantClientRelatedObjects(session, realm, clientModel, rep);
+                manager.setupMultiTenantClientRegistrations(session, realm, clientModel, rep);
             }
 
             ClientValidationUtil.validate(session, clientModel, true, c -> {
@@ -253,5 +253,4 @@ public class ClientsResource {
         ResteasyProviderFactory.getInstance().injectProperties(clientResource);
         return clientResource;
     }
-
 }

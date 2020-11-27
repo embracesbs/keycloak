@@ -245,7 +245,7 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
 
     default String[] getMultiTenantServiceAccountRoles() {
         String multiTenantAttribute = getAttribute(MULTI_TENANT_SERVICE_ACCOUNT_ROLES);
-        if (multiTenantAttribute!=null){
+        if (multiTenantAttribute != null) {
             String[] splitter = multiTenantAttribute.split(",");
             Arrays.stream(splitter).map(String::trim).toArray(unused -> splitter);
             return splitter;
