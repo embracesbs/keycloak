@@ -148,6 +148,8 @@ public class RoleContainerResource extends RoleResource {
 
             // readonly-role related registrations
             if (!role.isClientRole() && isReadOnly(rep)) {
+                role.setSingleAttribute(READ_ONLY_ROLE_ATTRIBUTE, Boolean.TRUE.toString());
+
                 setupReadonlyRoleRegistrations(role, rep);
             }
 

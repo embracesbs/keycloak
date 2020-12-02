@@ -69,9 +69,9 @@ public interface RoleModel {
     Map<String, List<String>> getAttributes();
 
     default boolean isReadOnly() {
-        List<String> readOnlyRoleAttribute = getAttribute(READ_ONLY_ROLE_ATTRIBUTE);
-        if (readOnlyRoleAttribute != null && readOnlyRoleAttribute.size() > 0) {
-            return Boolean.parseBoolean(readOnlyRoleAttribute.get(0));
+        String readOnlyRoleAttribute = getFirstAttribute(READ_ONLY_ROLE_ATTRIBUTE);
+        if (readOnlyRoleAttribute != null) {
+            return Boolean.parseBoolean(readOnlyRoleAttribute);
         }
         return Boolean.FALSE;
     }
