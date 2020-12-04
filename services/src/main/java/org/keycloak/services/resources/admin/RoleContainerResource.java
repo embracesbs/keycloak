@@ -17,19 +17,14 @@
 
 package org.keycloak.services.resources.admin;
 
+import org.apache.commons.lang.ArrayUtils;
+import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import javax.ws.rs.NotFoundException;
+
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.Constants;
-import org.keycloak.models.GroupModel;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.ModelDuplicateException;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.RoleContainerModel;
-import org.keycloak.models.RoleModel;
-import org.keycloak.models.UserModel;
+import org.keycloak.models.*;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.representations.idm.GroupRepresentation;
 import org.keycloak.representations.idm.ManagementPermissionReference;
@@ -54,12 +49,11 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
+
+import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;
+import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_REALMS_ATTRIBUTE;
 
 /**
  * @resource Roles
@@ -67,6 +61,7 @@ import java.util.stream.Collectors;
  * @version $Revision: 1 $
  */
 public class RoleContainerResource extends RoleResource {
+    protected static final Logger logger = Logger.getLogger(RoleContainerResource.class);
     private final RealmModel realm;
     protected AdminPermissionEvaluator auth;
 
@@ -146,6 +141,14 @@ public class RoleContainerResource extends RoleResource {
                 adminEvent.resource(ResourceType.CLIENT_ROLE);
             } else {
                 adminEvent.resource(ResourceType.REALM_ROLE);
+            }
+
+            // readonly-role related registrations
+            if (!role.isClientRole() && isReadOnly(rep)) {
+                role.setSingleAttribute(READ_ONLY_ROLE_ATTRIBUTE, Boolean.TRUE.toString());
+                if (ArrayUtils.isNotEmpty(getReadOnlyRoleRealmsFilter(rep)))
+                    role.setAttribute(READ_ONLY_ROLE_REALMS_ATTRIBUTE, Arrays.asList(getReadOnlyRoleRealmsFilter(rep)));
+                setupReadonlyRoleRegistrations(session, role, rep);
             }
 
             adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo, role.getName()).representation(rep).success();
@@ -464,5 +467,6 @@ public class RoleContainerResource extends RoleResource {
         return groupsModel.stream()
         		.map(g -> ModelToRepresentation.toRepresentation(g, !briefRepresentation))
         		.collect(Collectors.toList());
-    }   
+    }
+
 }

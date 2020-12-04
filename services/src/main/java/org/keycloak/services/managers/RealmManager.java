@@ -34,10 +34,8 @@ import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.storage.UserStorageProviderModel;
 import org.keycloak.utils.ReservedCharValidator;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Stream;
 
 import static java.lang.Boolean.TRUE;
 
@@ -104,6 +102,9 @@ public class RealmManager {
 
         // MULTI_TENANT CLIENT
         setupMultiTenantClientRegistrations(realm);
+
+        // READONLY_ROLE
+        setupReadonlyRolesRegistrations(realm);
 
         fireRealmPostCreate(realm);
 
@@ -598,6 +599,8 @@ public class RealmManager {
 
         setupMultiTenantClientRegistrations(realm);
 
+        setupReadonlyRolesRegistrations(realm);
+
         fireRealmPostCreate(realm);
 
         return realm;
@@ -766,6 +769,61 @@ public class RealmManager {
                 saUser.grantRole(foundRole);
             }
         }
+    }
+
+    private void setupReadonlyRolesRegistrations(RealmModel realm) {
+        // skip for admin (master) realm
+        if (Config.getAdminRealm().equals(realm.getId())) return;
+
+        // fetch readonly roles from master
+        RealmModel adminRealm = model.getRealm(Config.getAdminRealm());
+
+        // get all readonly admin realm roles
+        RoleModel[] readonlyRoles = model.getRealmRoles(adminRealm)
+                .stream().filter(RoleModel::isReadOnly)
+                .toArray(RoleModel[]::new);
+
+        if (readonlyRoles.length == 0) return; // no readonly roles in master!
+
+        String[] viewRoles = Arrays.stream(AdminRoles.ALL_REALM_ROLES)
+                .filter(r -> r.startsWith("view-"))
+                .toArray(String[]::new);
+
+        String[] readOnlyRoles = Stream.of(viewRoles, AdminRoles.ALL_QUERY_ROLES)
+                .flatMap(Stream::of)
+                .toArray(String[]::new);
+
+        // find this realm master admin app by name "{realmName}-realm"
+        String masterAdminAppName = realm.getName() + "-realm";
+        ClientModel masterAdminApp = adminRealm.getClientByClientId(masterAdminAppName);
+
+        for (RoleModel readonlyRole : readonlyRoles) {
+
+            String[] explicitRealmsFilter = readonlyRole.getReadOnlyRoleRealms();
+            //boolean doFilter = explicitRealmsFilter.length > 0;
+            boolean doFilter = Boolean.FALSE; //disabling realm filter-out functionality!
+
+            // filter out for this role if filter provided
+            if (doFilter && Arrays.stream(explicitRealmsFilter).noneMatch(r -> r.equals(realm.getName()))) {
+                // filter-out this realm !
+                continue;
+            }
+
+            for (String roleName : readOnlyRoles) {
+                // find the appropriate role from master admin app
+                RoleModel foundRole = masterAdminApp.getRole(roleName);
+
+                if (foundRole == null) {
+                    logger.errorf("read-only role registration -> master app role with name '%s' not found in app '%s'!", roleName, masterAdminAppName);
+                    continue;
+                }
+
+                // and composite to the readonly role
+                readonlyRole.addCompositeRole(foundRole);
+            }
+
+        }
+
     }
 
     private void fireRealmPostCreate(RealmModel realm) {
