@@ -194,7 +194,10 @@ public abstract class RoleResource {
         Map<String, List<String>> attributes = rep.getAttributes();
         if (attributes == null || !attributes.containsKey(READ_ONLY_ROLE_ATTRIBUTE)) return Boolean.FALSE;
 
-        String[] readOnlyRoleAttribute = attributes.get(READ_ONLY_ROLE_ATTRIBUTE).toArray(new String[0]);
+        List<String> readonlyAttr = attributes.get(READ_ONLY_ROLE_ATTRIBUTE);
+        if (readonlyAttr == null) return Boolean.FALSE;
+
+        String[] readOnlyRoleAttribute = readonlyAttr.toArray(new String[0]);
         if (ArrayUtils.isNotEmpty(readOnlyRoleAttribute)) {
             return Boolean.parseBoolean(readOnlyRoleAttribute[0]);
         }
@@ -206,7 +209,10 @@ public abstract class RoleResource {
         if (attributes == null || !attributes.containsKey(READ_ONLY_ROLE_REALMS_ATTRIBUTE))
             return ArrayUtils.EMPTY_STRING_ARRAY;
 
-        String[] readOnlyRoleRealms = attributes.get(READ_ONLY_ROLE_REALMS_ATTRIBUTE).toArray(new String[0]);
+        List<String> filterRealms = attributes.get(READ_ONLY_ROLE_REALMS_ATTRIBUTE);
+        if (filterRealms == null) return ArrayUtils.EMPTY_STRING_ARRAY;
+
+        String[] readOnlyRoleRealms = filterRealms.toArray(new String[0]);
         if (ArrayUtils.isNotEmpty(readOnlyRoleRealms)) {
             return readOnlyRoleRealms;
         }

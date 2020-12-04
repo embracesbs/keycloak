@@ -27,8 +27,8 @@ public interface RoleModel {
 
     // READ-ONLY ROLE RELATED ATTRIBUTES
 
-    String READ_ONLY_ROLE_ATTRIBUTE = "read.only.role";
-    String READ_ONLY_ROLE_REALMS_ATTRIBUTE = "read.only.role.realms";
+    String READ_ONLY_ROLE_ATTRIBUTE = "read.only";
+    String READ_ONLY_ROLE_REALMS_ATTRIBUTE = "read.only.explicit.realms";
 
     String getName();
 
