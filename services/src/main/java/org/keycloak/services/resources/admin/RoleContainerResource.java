@@ -22,7 +22,6 @@ import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import javax.ws.rs.NotFoundException;
 
-import org.keycloak.Config;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
 import org.keycloak.models.*;
@@ -35,7 +34,6 @@ import org.keycloak.services.ErrorResponse;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionEvaluator;
 import org.keycloak.services.resources.admin.permissions.AdminPermissionManagement;
 import org.keycloak.services.resources.admin.permissions.AdminPermissions;
-import sun.security.util.ArrayUtil;
 
 import javax.ws.rs.BadRequestException;
 import javax.ws.rs.Consumes;
@@ -53,7 +51,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;
 import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_REALMS_ATTRIBUTE;
@@ -149,8 +146,9 @@ public class RoleContainerResource extends RoleResource {
             // readonly-role related registrations
             if (!role.isClientRole() && isReadOnly(rep)) {
                 role.setSingleAttribute(READ_ONLY_ROLE_ATTRIBUTE, Boolean.TRUE.toString());
-
-                setupReadonlyRoleRegistrations(role, rep);
+                if (ArrayUtils.isNotEmpty(getReadOnlyRoleRealmsFilter(rep)))
+                    role.setAttribute(READ_ONLY_ROLE_REALMS_ATTRIBUTE, Arrays.asList(getReadOnlyRoleRealmsFilter(rep)));
+                setupReadonlyRoleRegistrations(session, role, rep);
             }
 
             adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo, role.getName()).representation(rep).success();
@@ -159,75 +157,6 @@ public class RoleContainerResource extends RoleResource {
         } catch (ModelDuplicateException e) {
             return ErrorResponse.exists("Role with name " + rep.getName() + " already exists");
         }
-    }
-
-    private void setupReadonlyRoleRegistrations(RoleModel role, RoleRepresentation rep) {
-        RealmModel adminRealm = session.realms().getRealm(Config.getAdminRealm());
-
-        List<RealmModel> allRealms = session.realms().getRealms();
-
-        String[] viewRoles = Arrays.stream(AdminRoles.ALL_REALM_ROLES)
-                .filter(r -> r.startsWith("view-"))
-                .toArray(String[]::new);
-
-        String[] readOnlyRoles = Stream.of(viewRoles, AdminRoles.ALL_QUERY_ROLES)
-                .flatMap(Stream::of)
-                .toArray(String[]::new);
-
-        String[] explicitRealmsFilter = getReadOnlyRoleRealms(rep);
-        //boolean doFilter = explicitRealmsFilter.length > 0;
-        boolean doFilter = Boolean.FALSE; //disabling realm filter-out functionality!
-
-        for (RealmModel realmElement : allRealms) {
-            // exclude 'master'
-            if (realmElement.getName().equals(Config.getAdminRealm()))
-                continue;
-
-            // filter out if filter provided
-            if (doFilter && Arrays.stream(explicitRealmsFilter).noneMatch(r -> r.equals(realmElement.getName()))) {
-                // filter-out this realm !
-                continue;
-            }
-
-            // find master admin apps by name "{realmName}-realm"
-            String masterAdminAppName = realmElement.getName() + "-realm";
-            ClientModel masterAdminApp = adminRealm.getClientByClientId(masterAdminAppName);
-
-            for (String roleName : readOnlyRoles) {
-                // find the appropriate role from master admin app
-                RoleModel foundRole = masterAdminApp.getRole(roleName);
-
-                if (foundRole == null) {
-                    logger.errorf("read-only role registration -> master app role with name '%s' not found in app '%s'!", roleName, masterAdminAppName);
-                    continue;
-                }
-
-                // and composite to the readonly role
-                role.addCompositeRole(foundRole);
-            }
-        }
-    }
-
-    private boolean isReadOnly(RoleRepresentation rep) {
-        Map<String, List<String>> attributes = rep.getAttributes();
-        if (attributes == null || !attributes.containsKey(READ_ONLY_ROLE_ATTRIBUTE)) return Boolean.FALSE;
-
-        List<String> readOnlyRoleAttribute = attributes.get(READ_ONLY_ROLE_ATTRIBUTE);
-        if (readOnlyRoleAttribute != null && readOnlyRoleAttribute.size() > 0) {
-            return Boolean.parseBoolean(readOnlyRoleAttribute.get(0));
-        }
-        return Boolean.FALSE;
-    }
-
-    private String[] getReadOnlyRoleRealms(RoleRepresentation rep) {
-        Map<String, List<String>> attributes = rep.getAttributes();
-        if (attributes == null || !attributes.containsKey(READ_ONLY_ROLE_REALMS_ATTRIBUTE)) return ArrayUtils.EMPTY_STRING_ARRAY;
-
-        List<String> readOnlyRoleRealms = attributes.get(READ_ONLY_ROLE_REALMS_ATTRIBUTE);
-        if (readOnlyRoleRealms != null && readOnlyRoleRealms.size() > 0) {
-            return readOnlyRoleRealms.stream().toArray(String[]::new);
-        }
-        return ArrayUtils.EMPTY_STRING_ARRAY;
     }
 
     /**
@@ -538,5 +467,6 @@ public class RoleContainerResource extends RoleResource {
         return groupsModel.stream()
         		.map(g -> ModelToRepresentation.toRepresentation(g, !briefRepresentation))
         		.collect(Collectors.toList());
-    }   
+    }
+
 }

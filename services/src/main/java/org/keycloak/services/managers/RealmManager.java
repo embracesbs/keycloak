@@ -779,7 +779,6 @@ public class RealmManager {
         RealmModel adminRealm = model.getRealm(Config.getAdminRealm());
 
         // get all readonly admin realm roles
-        //List<ClientModel> readonlyRoles = session.clientStorageManager().getClientsByAttribute(adminRealm, ClientModel.MULTI_TENANT, TRUE.toString());
         RoleModel[] readonlyRoles = model.getRealmRoles(adminRealm)
                 .stream().filter(RoleModel::isReadOnly)
                 .toArray(RoleModel[]::new);
@@ -826,7 +825,6 @@ public class RealmManager {
         }
 
     }
-
 
     private void fireRealmPostCreate(RealmModel realm) {
         session.getKeycloakSessionFactory().publish(new RealmModel.RealmPostCreateEvent() {
