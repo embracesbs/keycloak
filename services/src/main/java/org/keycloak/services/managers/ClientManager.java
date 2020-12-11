@@ -106,16 +106,23 @@ public class ClientManager {
                 // deep clone the rep object
                 ClientRepresentation realmClientRep = deepCopy(clientRepresentation);
                 realmClientRep.setId(null);
+                realmClientRep.setProtocolMappers(null);
+                realmClientRep.setDefaultClientScopes(null);
+                realmClientRep.setOptionalClientScopes(null);
 
                 ClientModel realmClient = createClient(session, realmElement, realmClientRep, true);
 
-                // get service account roles from attributes:
+                // get service account roles from attributes
                 String[] serviceAccountRoles = mtClient.getMultiTenantServiceAccountRoles();
 
                 // determine if Authorization Service needs to be enabled!
-                if (TRUE.equals(realmClientRep.getAuthorizationServicesEnabled())
-                    || Arrays.stream(serviceAccountRoles).anyMatch(r -> r.contains("-authorization"))) {
+                if (Arrays.stream(serviceAccountRoles).anyMatch(r -> r.contains("-authorization"))) {
+                    realmClientRep.setAuthorizationServicesEnabled(TRUE);
+                }
+
+                if (TRUE.equals(realmClientRep.getAuthorizationServicesEnabled())) {
                     RepresentationToModel.createResourceServer(realmClient, session, true);
+                    RepresentationToModel.importAuthorizationSettings(realmClientRep, realmClient, session);
                 }
 
                 // find master admin apps by name "{realmName}-realm"
