@@ -34,7 +34,10 @@ import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.storage.UserStorageProviderModel;
 import org.keycloak.utils.ReservedCharValidator;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static java.lang.Boolean.TRUE;
@@ -725,7 +728,7 @@ public class RealmManager {
         RealmModel adminRealm = model.getRealm(Config.getAdminRealm());
         List<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttribute(adminRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
-        if (multiTenantMasterClients == null || (long) multiTenantMasterClients.size() == 0) return;
+        if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) return;
 
         for (ClientModel multiTenantClient : multiTenantMasterClients) {
 
@@ -738,15 +741,20 @@ public class RealmManager {
             mtClientRepLocal.setDefaultClientScopes(null);
             mtClientRepLocal.setOptionalClientScopes(null);
 
-            ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal, true);
-
-            // get service account roles from attributes:
+            // get service account roles from attributes
             String[] providedRoles = multiTenantClient.getMultiTenantServiceAccountRoles();
 
             // determine if Authorization Service needs to be enabled!
-            if (TRUE.equals(mtClientRepLocal.getAuthorizationServicesEnabled())
-                    || Arrays.stream(providedRoles).anyMatch(r -> r.contains("-authorization"))) {
+            if (Arrays.stream(providedRoles).anyMatch(r -> r.contains("-authorization"))) {
+                mtClientRepLocal.setAuthorizationServicesEnabled(TRUE);
+            }
+
+            ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal, true);
+
+            // determine if Authorization Service needs to be enabled!
+            if (TRUE.equals(mtClientRepLocal.getAuthorizationServicesEnabled())) {
                 RepresentationToModel.createResourceServer(realmClient, session, true);
+                RepresentationToModel.importAuthorizationSettings(mtClientRepLocal, realmClient, session);
             }
 
             // find related master admin app by name "{realmName}-realm"
