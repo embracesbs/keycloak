@@ -1,13 +1,25 @@
 trigger:
 - release-embrace
 
+resources:
+  repositories:
+  - repository: MyGitHubKeycloakContainers
+    type: github
+    # endpoint: 
+    name: embracesbs/keycloak-containers
+    ref: master
+
 pool:
   vmImage: 'ubuntu-latest'
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+
+- checkout: MyGitHubKeycloakContainers
+  path: buildscripts
 
 - script: |
-    echo Add other tasks to build, test, and deploy your project.
-  displayName: 'Run a multi-line script'
+    echo Hello, world!
+    cd $(Agent.BuildDirectory)/buildscripts
+    ls
+  displayName: 'Run a one-line script'
+
