@@ -36,6 +36,7 @@ steps:
     repository: $(Docker.Repository.Name)
     dockerfile: '$(Agent.BuildDirectory)/buildscripts/server/Dockerfile'
     arguments: --build-arg GIT_REPO=embracesbs/keycloak --build-arg GIT_BRANCH=release-embrace
+    addPipelineData: false
     tags: |
       $(Tag)
 
@@ -48,5 +49,6 @@ steps:
     containerRegistry: $(Docker.ServiceConnectionName)
     repository: $(Docker.Repository.Name)
     buildContext: '**'
+    addPipelineData: false
     tags: |
       $(Tag)
