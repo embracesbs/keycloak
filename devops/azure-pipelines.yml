@@ -5,7 +5,7 @@ resources:
   repositories:
   - repository: MyGitHubKeycloakContainers
     type: github
-    # endpoint: 
+    endpoint: GitHubEmbraceSBSKeycloak
     name: embracesbs/keycloak-containers
     ref: master
 
