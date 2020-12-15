@@ -58,7 +58,3 @@ steps:
     tags: |
       latest
       $(Version)
-
-- task: Docker@2
-
-
