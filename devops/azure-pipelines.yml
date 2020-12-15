@@ -1,23 +1,20 @@
 trigger:
 - release-embrace
 
+parameters:
+- name: tag
+  type: string
+  default: 10.0.2
+
 resources:
   repositories:
   - repository: MyGitHubKeycloakContainers
     type: github
     endpoint: GitHubEmbraceSBSKeycloak
     name: embracesbs/keycloak-containers
-    ref: master
+    ref: tags/${{ parameters.tag }}
 
-    
 variables:
-# TODO: use version from keycloak repo (git tag??)
-- name: Version.MajorMinor
-  value: 0.1
-- name: Version.Revision
-  value: $[counter(variables['Version.MajorMinor'], 0)]
-- name: Version
-  value: $(Version.MajorMinor).$(Version.Revision)
 - name: Docker.ServiceConnectionName
   value: 'dockerembrace'
 - name: Docker.Registry
@@ -43,8 +40,7 @@ steps:
     dockerfile: '$(Agent.BuildDirectory)/buildscripts/server/Dockerfile'
     arguments: --build-arg GIT_REPO=embracesbs/keycloak --build-arg GIT_BRANCH=release-embrace
     tags: |
-      latest
-      $(Version)
+      ${{ parameters.tag }}
 
 - task: Docker@2
   name: DockerPush
@@ -56,5 +52,4 @@ steps:
     repository: $(Docker.Repository.Name)
     buildContext: '**'
     tags: |
-      latest
-      $(Version)
+      ${{ parameters.tag }}
