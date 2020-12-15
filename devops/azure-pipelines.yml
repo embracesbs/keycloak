@@ -7,11 +7,15 @@ resources:
     type: github
     endpoint: GitHubEmbraceSBSKeycloak
     name: embracesbs/keycloak-containers
-    ref: refs/tags/10.0.2
+    # ref: refs/tags/10.0.2
 
 variables:
-- name: Tag
+- name: Version.Tag
   value: 10.0.2
+- name: Version.Revision
+  value: $[counter(variables['Version.Tag'], 0)]
+- name: Version
+  value: $(Version.Tag)$(Version.Revision)
 - name: Docker.ServiceConnectionName
   value: 'dockerembrace'
 - name: Docker.Registry
@@ -38,7 +42,7 @@ steps:
     arguments: --build-arg GIT_REPO=embracesbs/keycloak --build-arg GIT_BRANCH=release-embrace
     addPipelineData: false
     tags: |
-      $(Tag)
+      $(Version)
 
 - task: Docker@2
   name: DockerPush
@@ -51,4 +55,4 @@ steps:
     buildContext: '**'
     addPipelineData: false
     tags: |
-      $(Tag)
+      $(Version)
