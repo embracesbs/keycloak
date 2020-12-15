@@ -9,6 +9,22 @@ resources:
     name: embracesbs/keycloak-containers
     ref: master
 
+    
+variables:
+# TODO: use version from keycloak repo (git tag??)
+- name: Version.MajorMinor
+  value: 0.1
+- name: Version.Revision
+  value: $[counter(variables['Version.MajorMinor'], 0)]
+- name: Version
+  value: $(Version.MajorMinor).$(Version.Revision)
+- name: Docker.ServiceConnectionName
+  value: 'dockerembrace'
+- name: Docker.Registry
+  value: 'dockerembrace.azurecr.io' 
+- name: Docker.Repository.Name
+  value: keycloak-embrace
+
 pool:
   vmImage: 'ubuntu-latest'
 
@@ -17,9 +33,32 @@ steps:
 - checkout: MyGitHubKeycloakContainers
   path: buildscripts
 
-- script: |
-    echo Hello, world!
-    cd $(Agent.BuildDirectory)/buildscripts
-    ls
-  displayName: 'Run a one-line script'
+- task: Docker@2
+  name: DockerBuild
+  displayName: 'Docker Build'
+  inputs:
+    command: build
+    containerRegistry: $(Docker.ServiceConnectionName)
+    repository: $(Docker.Keycloak.Repository.Name)
+    dockerfile: '$(Agent.BuildDirectory)/buildscripts/server/Dockerfile'
+    arguments: --build-arg GIT_REPO=embracesbs/keycloak --build-arg GIT_BRANCH=release-embrace
+    tags: |
+      latest
+      $(Version)
+
+- task: Docker@2
+  name: DockerPush
+  condition: and(succeeded(), not(eq(variables['Build.Reason'], 'PullRequest'))) # don't run for pullrequest (pr's only do build as a CI process)
+  displayName: 'Docker Push'
+  inputs:
+    command: push
+    containerRegistry: $(Docker.ServiceConnectionName)
+    repository: $(Docker.Keycloak.Repository.Name)
+    buildContext: '**'
+    tags: |
+      latest
+      $(Version)
+
+- task: Docker@2
+
 
