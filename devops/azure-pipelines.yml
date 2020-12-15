@@ -10,12 +10,18 @@ resources:
     ref: refs/tags/10.0.2
 
 variables:
+- name: Version.Major
+  value: 10
+- name: Version.Minor
+  value: 0
+- name: Version.Patch
+  value: 2
 - name: Version.Tag
-  value: 10.0.2
+  value: $(Version.Major).$(Version.Minor).$(Version.Patch)
 - name: Version.Revision
   value: $[counter(variables['Version.Tag'], 0)]
 - name: Version
-  value: $(Version.Tag)$(Version.Revision)
+  value: $(Version.Tag)-$(Version.Revision)
 - name: Docker.ServiceConnectionName
   value: 'dockerembrace'
 - name: Docker.Registry
@@ -43,6 +49,9 @@ steps:
     addPipelineData: false
     tags: |
       $(Version)
+      $(Version.Tag)
+      $(Version.Major).$(Version.Minor)
+      $(Version.Major)
 
 - task: Docker@2
   name: DockerPush
@@ -56,3 +65,6 @@ steps:
     addPipelineData: false
     tags: |
       $(Version)
+      $(Version.Tag)
+      $(Version.Major).$(Version.Minor)
+      $(Version.Major)
