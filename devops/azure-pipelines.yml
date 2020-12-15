@@ -39,7 +39,7 @@ steps:
   inputs:
     command: build
     containerRegistry: $(Docker.ServiceConnectionName)
-    repository: $(Docker.Keycloak.Repository.Name)
+    repository: $(Docker.Repository.Name)
     dockerfile: '$(Agent.BuildDirectory)/buildscripts/server/Dockerfile'
     arguments: --build-arg GIT_REPO=embracesbs/keycloak --build-arg GIT_BRANCH=release-embrace
     tags: |
@@ -53,7 +53,7 @@ steps:
   inputs:
     command: push
     containerRegistry: $(Docker.ServiceConnectionName)
-    repository: $(Docker.Keycloak.Repository.Name)
+    repository: $(Docker.Repository.Name)
     buildContext: '**'
     tags: |
       latest
