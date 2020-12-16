@@ -7,8 +7,7 @@ resources:
     type: github
     endpoint: GitHubEmbraceSBSKeycloak
     name: embracesbs/keycloak-containers
-    ref: refs/heads/10.0.2-fix
-    #ref: refs/tags/10.0.2
+    ref: refs/tags/10.0.3
 
 variables:
 - name: Version.Major
