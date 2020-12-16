@@ -18,7 +18,6 @@ package org.keycloak.services.managers;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import org.apache.commons.lang.SerializationUtils;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.authentication.ClientAuthenticator;
@@ -37,6 +36,10 @@ import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.net.URI;
 import java.util.*;
@@ -150,8 +153,21 @@ public class ClientManager {
 
     }
 
+    /** Makes a deep copy of any Serializable object that is passed.  **/
+    @SuppressWarnings("unchecked")
     public static <T extends Serializable> T deepCopy(T serializable) {
-        return serializable != null ? (T) SerializationUtils.clone(serializable) : null;
+        try {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+            objectOutputStream.writeObject(serializable);
+            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+            ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
+            return (T) objectInputStream.readObject();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     public boolean removeClient(RealmModel realm, ClientModel client) {
