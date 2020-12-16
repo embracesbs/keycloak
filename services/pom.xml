@@ -185,6 +185,10 @@
             <groupId>com.webauthn4j</groupId>
             <artifactId>webauthn4j-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>            
+        </dependency>
     </dependencies>
     <build>
         <plugins>
