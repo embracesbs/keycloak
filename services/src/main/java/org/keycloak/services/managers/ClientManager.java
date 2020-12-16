@@ -280,7 +280,7 @@ public class ClientManager {
             return (T) objectInputStream.readObject();
         }
         catch (Exception e) {
-            throw new RuntimeException("Failed to load keystore", e);
+            throw new RuntimeException("Failed to deepCopy the client object!", e);
         }
     }
     
