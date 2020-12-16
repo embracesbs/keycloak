@@ -153,23 +153,6 @@ public class ClientManager {
 
     }
 
-    /** Makes a deep copy of any Serializable object that is passed.  **/
-    @SuppressWarnings("unchecked")
-    public static <T extends Serializable> T deepCopy(T serializable) {
-        try {
-            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
-            objectOutputStream.writeObject(serializable);
-            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
-            ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
-            return (T) objectInputStream.readObject();
-        }
-        catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
     public boolean removeClient(RealmModel realm, ClientModel client) {
         if (realm.removeClient(client.getId())) {
             UserSessionProvider sessions = realmManager.getSession().sessions();
@@ -203,7 +186,7 @@ public class ClientManager {
         if (registeredNodes == null || registeredNodes.isEmpty()) {
             return Collections.emptySet();
         }
-
+            
         int currentTime = Time.currentTime();
 
         Set<String> validatedNodes = new TreeSet<String>();
@@ -283,6 +266,24 @@ public class ClientManager {
             serviceAccountUser.setUsername(username);
         }
     }
+
+    /** Makes a deep copy of any Serializable object that is passed.  **/
+    @SuppressWarnings("unchecked")
+    public static <T extends Serializable> T deepCopy(T serializable) {
+        if (serializable == null) return null;
+        try {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+            objectOutputStream.writeObject(serializable);
+            ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+            ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream);
+            return (T) objectInputStream.readObject();
+        }
+        catch (Exception e) {
+            throw new RuntimeException("Failed to load keystore", e);
+        }
+    }
+    
 
     @JsonPropertyOrder({"realm", "realm-public-key", "bearer-only", "auth-server-url", "ssl-required",
             "resource", "public-client", "verify-token-audience", "credentials",
