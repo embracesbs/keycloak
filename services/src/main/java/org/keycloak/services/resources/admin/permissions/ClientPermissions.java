@@ -228,6 +228,12 @@ class ClientPermissions implements ClientPermissionEvaluator,  ClientPermissionM
         return canView() || root.hasOneAdminRole(AdminRoles.QUERY_CLIENTS, AdminRoles.QUERY_USERS);
     }
 
+    @Override
+    public boolean canListMultitenantClientIds() {
+        // when the user is assigned with query-users role, administrators can restrict which clients the user can see when using fine-grained admin permissions
+        return root.hasOneAdminRole(AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
+    }
+
     public boolean canList(ClientModel clientModel) {
         return canView(clientModel) || root.hasOneAdminRole(AdminRoles.QUERY_CLIENTS);
     }

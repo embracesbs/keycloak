@@ -90,7 +90,8 @@ public class MigrationModelManager {
             new MigrateTo8_0_0(),
             new MigrateTo8_0_2(),
             new MigrateTo9_0_0(),
-            new MigrateTo9_0_4()
+            new MigrateTo9_0_4(),
+            new MigrateTo10_0_3()
     };
 
     public static void migrate(KeycloakSession session) {
