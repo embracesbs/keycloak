@@ -202,7 +202,7 @@ public class KeycloakApplication extends Application {
             }
             session.getTransactionManager().commit();
 
-            //todo: how to ensure running script only once??
+            // once-run embrace data migration:
             embraceMigration();
 
         } catch (RuntimeException re) {
