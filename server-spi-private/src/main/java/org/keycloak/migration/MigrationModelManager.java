@@ -22,35 +22,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 import org.keycloak.common.Version;
-import org.keycloak.migration.migrators.MigrateTo1_2_0;
-import org.keycloak.migration.migrators.MigrateTo1_3_0;
-import org.keycloak.migration.migrators.MigrateTo1_4_0;
-import org.keycloak.migration.migrators.MigrateTo1_5_0;
-import org.keycloak.migration.migrators.MigrateTo1_6_0;
-import org.keycloak.migration.migrators.MigrateTo1_7_0;
-import org.keycloak.migration.migrators.MigrateTo1_8_0;
-import org.keycloak.migration.migrators.MigrateTo1_9_0;
-import org.keycloak.migration.migrators.MigrateTo1_9_2;
-import org.keycloak.migration.migrators.MigrateTo2_0_0;
-import org.keycloak.migration.migrators.MigrateTo2_1_0;
-import org.keycloak.migration.migrators.MigrateTo2_2_0;
-import org.keycloak.migration.migrators.MigrateTo2_3_0;
-import org.keycloak.migration.migrators.MigrateTo2_5_0;
-import org.keycloak.migration.migrators.MigrateTo3_0_0;
-import org.keycloak.migration.migrators.MigrateTo3_1_0;
-import org.keycloak.migration.migrators.MigrateTo3_2_0;
-import org.keycloak.migration.migrators.MigrateTo3_4_0;
-import org.keycloak.migration.migrators.MigrateTo3_4_1;
-import org.keycloak.migration.migrators.MigrateTo3_4_2;
-import org.keycloak.migration.migrators.MigrateTo4_0_0;
-import org.keycloak.migration.migrators.MigrateTo4_2_0;
-import org.keycloak.migration.migrators.MigrateTo4_6_0;
-import org.keycloak.migration.migrators.MigrateTo6_0_0;
-import org.keycloak.migration.migrators.MigrateTo8_0_0;
-import org.keycloak.migration.migrators.MigrateTo8_0_2;
-import org.keycloak.migration.migrators.MigrateTo9_0_0;
-import org.keycloak.migration.migrators.MigrateTo9_0_4;
-import org.keycloak.migration.migrators.Migration;
+import org.keycloak.migration.migrators.*;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.representations.idm.RealmRepresentation;
@@ -60,7 +32,7 @@ import org.keycloak.representations.idm.RealmRepresentation;
  * @version $Revision: 1 $
  */
 public class MigrationModelManager {
-    private static Logger logger = Logger.getLogger(MigrationModelManager.class);
+    private static final Logger logger = Logger.getLogger(MigrationModelManager.class);
 
     private static final Migration[] migrations = {
             new MigrateTo1_2_0(),
@@ -90,8 +62,7 @@ public class MigrationModelManager {
             new MigrateTo8_0_0(),
             new MigrateTo8_0_2(),
             new MigrateTo9_0_0(),
-            new MigrateTo9_0_4(),
-            new MigrateTo10_0_3()
+            new MigrateTo9_0_4()
     };
 
     public static void migrate(KeycloakSession session) {
