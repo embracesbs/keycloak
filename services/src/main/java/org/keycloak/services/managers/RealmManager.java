@@ -192,7 +192,7 @@ public class RealmManager {
         }
 
     }
-    public void addQueryCompositeRoles(ClientModel realmAccess) {
+    private void addQueryCompositeRoles(ClientModel realmAccess) {
         RoleModel queryClients = realmAccess.getRole(AdminRoles.QUERY_CLIENTS);
         RoleModel queryUsers = realmAccess.getRole(AdminRoles.QUERY_USERS);
         RoleModel queryGroups = realmAccess.getRole(AdminRoles.QUERY_GROUPS);
@@ -203,7 +203,6 @@ public class RealmManager {
         viewUsers.addCompositeRole(queryUsers);
         viewUsers.addCompositeRole(queryGroups);
     }
-
 
     public String getRealmAdminClientId(RealmModel realm) {
         return Constants.REALM_MANAGEMENT_CLIENT_ID;
@@ -275,17 +274,16 @@ public class RealmManager {
         if (rep.getEventsListeners() != null) {
             realm.setEventsListeners(new HashSet<>(rep.getEventsListeners()));
         }
-        if(rep.getEnabledEventTypes() != null) {
+        if (rep.getEnabledEventTypes() != null) {
             realm.setEnabledEventTypes(new HashSet<>(rep.getEnabledEventTypes()));
         }
-        if(rep.isAdminEventsEnabled() != null) {
+        if (rep.isAdminEventsEnabled() != null) {
             realm.setAdminEventsEnabled(rep.isAdminEventsEnabled());
         }
-        if(rep.isAdminEventsDetailsEnabled() != null){
+        if (rep.isAdminEventsDetailsEnabled() != null) {
             realm.setAdminEventsDetailsEnabled(rep.isAdminEventsDetailsEnabled());
         }
     }
-
 
     public void setupMasterAdminManagement(RealmModel realm) {
         // Need to refresh masterApp for current realm
@@ -306,11 +304,12 @@ public class RealmManager {
         if (realm.getName().equals(Config.getAdminRealm())) {
             adminRealm = realm;
 
-            adminRole = realm.addRole(AdminRoles.ADMIN);
+            adminRole = adminRealm.addRole(AdminRoles.ADMIN);
 
-            RoleModel createRealmRole = realm.addRole(AdminRoles.CREATE_REALM);
-            adminRole.addCompositeRole(createRealmRole);
+            RoleModel createRealmRole = adminRealm.addRole(AdminRoles.CREATE_REALM);
             createRealmRole.setDescription("${role_" + AdminRoles.CREATE_REALM + "}");
+            adminRole.addCompositeRole(createRealmRole);
+
         } else {
             adminRealm = model.getRealm(Config.getAdminRealm());
             adminRole = adminRealm.getRole(AdminRoles.ADMIN);
@@ -328,6 +327,15 @@ public class RealmManager {
             role.setDescription("${role_"+r+"}");
             adminRole.addCompositeRole(role);
         }
+
+        if (adminRealm.equals(realm)) {
+            // add embrace custom query-multitenant-client-ids role to master admin app
+            String queryClientIds = AdminRoles.QUERY_MULTITENANT_CLIENT_IDS;
+            RoleModel queryClientIdsRole = realmAdminApp.addRole(queryClientIds);
+            queryClientIdsRole.setDescription("${role_" + queryClientIds + "}");
+            adminRole.addCompositeRole(queryClientIdsRole);
+        }
+
         addQueryCompositeRoles(realmAdminApp);
     }
 

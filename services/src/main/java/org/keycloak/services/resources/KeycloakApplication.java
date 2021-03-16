@@ -23,13 +23,7 @@ import org.keycloak.common.util.Resteasy;
 import org.keycloak.config.ConfigProviderFactory;
 import org.keycloak.exportimport.ExportImportManager;
 import org.keycloak.migration.MigrationModelManager;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.models.KeycloakSessionTask;
-import org.keycloak.models.ModelDuplicateException;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserProvider;
+import org.keycloak.models.*;
 import org.keycloak.models.dblock.DBLockManager;
 import org.keycloak.models.dblock.DBLockProvider;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -75,6 +69,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.lang.Boolean.TRUE;
+
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
@@ -87,8 +83,8 @@ public class KeycloakApplication extends Application {
 
     protected final PlatformProvider platform = Platform.getPlatform();
 
-    protected Set<Object> singletons = new HashSet<Object>();
-    protected Set<Class<?>> classes = new HashSet<Class<?>>();
+    protected Set<Object> singletons = new HashSet<>();
+    protected Set<Class<?>> classes = new HashSet<>();
 
     protected KeycloakSessionFactory sessionFactory;
 
@@ -135,21 +131,16 @@ public class KeycloakApplication extends Application {
 
         ExportImportManager[] exportImportManager = new ExportImportManager[1];
 
-        KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
-
-            @Override
-            public void run(KeycloakSession lockSession) {
-                DBLockManager dbLockManager = new DBLockManager(lockSession);
-                dbLockManager.checkForcedUnlock();
-                DBLockProvider dbLock = dbLockManager.getDBLock();
-                dbLock.waitForLock(DBLockProvider.Namespace.KEYCLOAK_BOOT);
-                try {
-                    exportImportManager[0] = migrateAndBootstrap();
-                } finally {
-                    dbLock.releaseLock();
-                }
+        KeycloakModelUtils.runJobInTransaction(sessionFactory, lockSession -> {
+            DBLockManager dbLockManager = new DBLockManager(lockSession);
+            dbLockManager.checkForcedUnlock();
+            DBLockProvider dbLock = dbLockManager.getDBLock();
+            dbLock.waitForLock(DBLockProvider.Namespace.KEYCLOAK_BOOT);
+            try {
+                exportImportManager[0] = migrateAndBootstrap();
+            } finally {
+                dbLock.releaseLock();
             }
-
         });
 
 
@@ -157,14 +148,9 @@ public class KeycloakApplication extends Application {
             exportImportManager[0].runExport();
         }
 
-        KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
-
-            @Override
-            public void run(KeycloakSession session) {
-                boolean shouldBootstrapAdmin = new ApplianceBootstrap(session).isNoMasterUser();
-                BOOTSTRAP_ADMIN_USER.set(shouldBootstrapAdmin);
-            }
-
+        KeycloakModelUtils.runJobInTransaction(sessionFactory, session -> {
+            boolean shouldBootstrapAdmin = new ApplianceBootstrap(session).isNoMasterUser();
+            BOOTSTRAP_ADMIN_USER.set(shouldBootstrapAdmin);
         });
 
         sessionFactory.publish(new PostMigrationEvent());
@@ -203,7 +189,6 @@ public class KeycloakApplication extends Application {
                 }
             }
 
-
             ApplianceBootstrap applianceBootstrap = new ApplianceBootstrap(session);
             exportImportManager = new ExportImportManager(session);
 
@@ -216,6 +201,10 @@ public class KeycloakApplication extends Application {
                 applianceBootstrap.createMasterRealm();
             }
             session.getTransactionManager().commit();
+
+            // once-run embrace data migration:
+            embraceMigration();
+
         } catch (RuntimeException re) {
             if (session.getTransactionManager().isActive()) {
                 session.getTransactionManager().rollback();
@@ -244,6 +233,72 @@ public class KeycloakApplication extends Application {
             MigrationModelManager.migrate(session);
             session.getTransactionManager().commit();
         } catch (Exception e) {
+            session.getTransactionManager().rollback();
+            throw e;
+        } finally {
+            session.close();
+        }
+    }
+
+    protected void embraceMigration() {
+        // custom migrations for patching the existing data
+        KeycloakSession session = sessionFactory.create();
+        logger.debugv("Embrace data migration script ...");
+
+        // 1. QUERY_MULTITENANT_CLIENT_IDS Migration
+        try {
+            session.getTransactionManager().begin();
+
+            // check if master exists (first start!)
+            RealmModel masterRealm = session.realms().getRealm(Config.getAdminRealm());
+            if (null == masterRealm) return; //ths is first app start against empty DB
+
+            // add queryClientIdsRole to master admin app and make it admin role composite:
+            ClientModel masterAdminApp = masterRealm.getClientByClientId(masterRealm.getName()+AdminRoles.APP_SUFFIX);
+
+            // validate if we need to run the rest of the script:
+            logger.debugv("Checking if multi-tenancy related migration is already done...");
+            RoleModel queryMtClientIdsRole = masterAdminApp.getRole(AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
+            if (null != queryMtClientIdsRole) {
+                logger.debugv("Multi-tenancy related migration already done! Script run dismissed.");
+                return; // custom migration already done
+            }
+
+            logger.debugv("Multi-tenancy related migration - START!");
+            RoleModel adminRole = masterRealm.getRole(AdminRoles.ADMIN);
+
+            logger.debugv("Multi-tenancy migration - Adding role {0} to masterApp!", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
+            String queryClientIds = AdminRoles.QUERY_MULTITENANT_CLIENT_IDS;
+            RoleModel queryClientIdsRole = masterAdminApp.addRole(queryClientIds);
+            queryClientIdsRole.setDescription("${role_"+queryClientIds+"}");
+
+            logger.debugv("Multi-tenancy migration - Adding role {0} to admin role composites!", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
+            adminRole.addCompositeRole(queryClientIdsRole);
+
+            // search for multitenant clients
+            logger.debugv("Multi-tenancy migration - Searching for existing multi-tenant clients!");
+            List<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttribute(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+
+            if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()){
+                logger.debugv("Multi-tenancy migration - None existing multitenant clients found!");
+                return; // no multitenant clients found
+            }
+
+            // foreach existing mt-client
+            for (ClientModel multiTenantClient : multiTenantMasterClients) {
+                logger.debugv("Multi-tenancy migration - Multitenant client found: {0}! Migrating....", multiTenantClient.getClientId());
+                // find service account user for this mt-client
+                UserModel saUser = session.users().getServiceAccount(multiTenantClient);
+                // grant role to the Service Account user of this mt-client
+                logger.debugv("Multi-tenancy migration - Granting special role {0} to client {1}....", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS, multiTenantClient.getClientId());
+                saUser.grantRole(queryClientIdsRole);
+                logger.debugv("Multi-tenancy migration - Multitenant client {0} migration success....", multiTenantClient.getClientId());
+            }
+
+            logger.debugv("Multi-tenancy related migration - SUCCESS!");
+            session.getTransactionManager().commit();
+        } catch (Exception e) {
+            logger.debugv("Multi-tenancy related migration - Failed! :: {0}", e.getMessage());
             session.getTransactionManager().rollback();
             throw e;
         } finally {
