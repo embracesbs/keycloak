@@ -22,6 +22,8 @@ import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.authentication.ClientAuthenticator;
 import org.keycloak.authentication.ClientAuthenticatorFactory;
+import org.keycloak.authorization.AuthorizationProvider;
+import org.keycloak.authorization.model.ResourceServer;
 import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.*;
@@ -34,13 +36,11 @@ import org.keycloak.protocol.oidc.mappers.UserSessionNoteMapper;
 import org.keycloak.representations.adapters.config.BaseRealmConfig;
 import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
 import org.keycloak.representations.idm.ClientRepresentation;
+import org.keycloak.representations.idm.authorization.ResourceServerRepresentation;
+import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.net.URI;
 import java.util.*;
 
@@ -107,29 +107,49 @@ public class ClientManager {
             if (realmElement.getName().equals(Config.getAdminRealm()))
                 continue;
 
-            // create copy clients in realm
-            //todo: consider creating new instance of the ClientRepresentation using only needed fields:
-
-            // deep clone the rep object
+            // create copy clients in realm by deep cloning the rep object
             ClientRepresentation realmClientRep = deepCopy(clientRepresentation);
             realmClientRep.setId(null);
             realmClientRep.setProtocolMappers(null);
             realmClientRep.setDefaultClientScopes(null);
             realmClientRep.setOptionalClientScopes(null);
+            realmClientRep.setServiceAccountsEnabled(true);
 
             ClientModel realmClient = createClient(session, realmElement, realmClientRep, true);
+
+            // create mandatory resource server service account:
+            UserModel serviceAccount = session.users().getServiceAccount(realmClient);
+
+            if (serviceAccount == null) {
+                enableServiceAccount(realmClient);
+            }
 
             // get service account roles from attributes
             String[] serviceAccountRoles = mtClient.getMultiTenantServiceAccountRoles();
 
             // determine if Authorization Service needs to be enabled!
+            // this effectively means that the client we are creating is a Resource Server!
             if (Arrays.stream(serviceAccountRoles).anyMatch(r -> r.contains("-authorization"))) {
                 realmClientRep.setAuthorizationServicesEnabled(TRUE);
             }
 
             if (TRUE.equals(realmClientRep.getAuthorizationServicesEnabled())) {
-                RepresentationToModel.createResourceServer(realmClient, session, true);
-                RepresentationToModel.importAuthorizationSettings(realmClientRep, realmClient, session);
+                AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
+
+                // =>  resource server!
+                ResourceServer resourceServer = RepresentationToModel.createResourceServer(realmClient, session, true);
+
+                ResourceServerDefaultPermissionCreator resourceServerDefaultPermissionCreator
+                        = new ResourceServerDefaultPermissionCreator(session, authorization, resourceServer);
+
+                resourceServerDefaultPermissionCreator.create(realmClient);
+
+                ResourceServerRepresentation authorizationSettings = realmClientRep.getAuthorizationSettings();
+
+                if (authorizationSettings != null) {
+                    realmClientRep.setClientId(realmClient.getId());
+                    RepresentationToModel.toModel(authorizationSettings, authorization);
+                }
             }
 
             // find master admin apps by name "{realmName}-realm"
@@ -457,8 +477,7 @@ public class ClientManager {
     public Boolean isMultiTenantClientRepresentation(ClientRepresentation clientRep) {
         Map<String, String> attributes = clientRep.getAttributes();
         if (attributes != null && attributes.containsKey(ClientModel.MULTI_TENANT)) {
-            Boolean isMultiTenant = Boolean.parseBoolean(attributes.get(ClientModel.MULTI_TENANT));
-            return isMultiTenant != null ? isMultiTenant : Boolean.FALSE;
+            return Boolean.parseBoolean(attributes.get(ClientModel.MULTI_TENANT));
         }
         return Boolean.FALSE;
     }

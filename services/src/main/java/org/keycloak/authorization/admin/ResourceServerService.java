@@ -39,6 +39,7 @@ import org.keycloak.events.admin.ResourceType;
 import org.keycloak.exportimport.util.ExportUtils;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.models.utils.RepresentationToModel;
@@ -85,7 +86,8 @@ public class ResourceServerService {
 
         if (this.resourceServer == null) {
             this.resourceServer = RepresentationToModel.createResourceServer(client, session, true);
-            createDefaultPermission(createDefaultResource(), createDefaultPolicy());
+            ResourceRepresentation defaultResource = createDefaultResource();
+            createDefaultPermission(defaultResource, createDefaultPolicy());
             audit(OperationType.CREATE, session.getContext().getUri(), newClient);
         }
 
