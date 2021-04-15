@@ -18,6 +18,8 @@ package org.keycloak.services.managers;
 
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
+import org.keycloak.authorization.AuthorizationProvider;
+import org.keycloak.authorization.model.ResourceServer;
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.migration.MigrationModelManager;
 import org.keycloak.models.*;
@@ -29,7 +31,9 @@ import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.OIDCLoginProtocolFactory;
 import org.keycloak.protocol.oidc.mappers.AudienceResolveProtocolMapper;
 import org.keycloak.representations.idm.*;
+import org.keycloak.representations.idm.authorization.ResourceServerRepresentation;
 import org.keycloak.services.clientregistration.policy.DefaultClientRegistrationPolicies;
+import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.storage.UserStorageProviderModel;
 import org.keycloak.utils.ReservedCharValidator;
@@ -748,6 +752,7 @@ public class RealmManager {
             mtClientRepLocal.setProtocolMappers(null);
             mtClientRepLocal.setDefaultClientScopes(null);
             mtClientRepLocal.setOptionalClientScopes(null);
+            mtClientRepLocal.setServiceAccountsEnabled(true);
 
             // get service account roles from attributes
             String[] providedRoles = multiTenantClient.getMultiTenantServiceAccountRoles();
@@ -759,10 +764,30 @@ public class RealmManager {
 
             ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal, true);
 
+            // create mandatory resource-server client service account:
+            UserModel serviceAccount = session.users().getServiceAccount(realmClient);
+
+            if (serviceAccount == null) {
+                new ClientManager(this).enableServiceAccount(realmClient);
+            }
+
             // determine if Authorization Service needs to be enabled!
             if (TRUE.equals(mtClientRepLocal.getAuthorizationServicesEnabled())) {
-                RepresentationToModel.createResourceServer(realmClient, session, true);
-                RepresentationToModel.importAuthorizationSettings(mtClientRepLocal, realmClient, session);
+                AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
+
+                ResourceServer resourceServer = RepresentationToModel.createResourceServer(realmClient, session, true);
+
+                ResourceServerDefaultPermissionCreator resourceServerDefaultPermissionCreator
+                        = new ResourceServerDefaultPermissionCreator(session, authorization, resourceServer);
+
+                resourceServerDefaultPermissionCreator.create(realmClient);
+
+                ResourceServerRepresentation authorizationSettings = mtClientRepLocal.getAuthorizationSettings();
+
+                if (authorizationSettings != null) {
+                    mtClientRepLocal.setClientId(realmClient.getId());
+                    RepresentationToModel.toModel(authorizationSettings, authorization);
+                }
             }
 
             // find related master admin app by name "{realmName}-realm"

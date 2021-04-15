@@ -324,11 +324,11 @@ public class ClientsResource {
 
     public static class RealmWithClientUidRepresentation implements Serializable {
         private String realmName;
-        private String clientUid;
+        private String clientGuid;
 
-        private RealmWithClientUidRepresentation(String realmName, String clientUid){
+        private RealmWithClientUidRepresentation(String realmName, String clientGuid){
             this.realmName = realmName;
-            this.clientUid = clientUid;
+            this.clientGuid = clientGuid;
         }
 
         public static RealmWithClientUidRepresentation asRepresentation(String realmName, String clientUid){
@@ -343,33 +343,12 @@ public class ClientsResource {
             this.realmName = realmName;
         }
 
-        public String getClientUid() {
-            return clientUid;
+        public String getClientGuid() {
+            return clientGuid;
         }
 
-        public void setClientUid(String clientUid) {
-            this.clientUid = clientUid;
+        public void setClientGuid(String clientGuid) {
+            this.clientGuid = clientGuid;
         }
     }
-
-//    public class RealmWithClientUidRepresentation implements Serializable {
-//        private String realmName;
-//        private String clientUid;
-//
-//        public String getRealmName() {
-//            return realmName;
-//        }
-//
-//        public void setRealmName(String realmName) {
-//            this.realmName = realmName;
-//        }
-//
-//        public String getClientUid() {
-//            return clientUid;
-//        }
-//
-//        public void setClientUid(String clientUid) {
-//            this.clientUid = clientUid;
-//        }
-//    }
 }

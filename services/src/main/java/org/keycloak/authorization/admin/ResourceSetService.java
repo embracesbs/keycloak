@@ -128,7 +128,9 @@ public class ResourceSetService {
             throw new ErrorResponseException(OAuthErrorException.INVALID_REQUEST, "Resource with name [" + resource.getName() + "] already exists.", Status.CONFLICT);
         }
 
-        return toRepresentation(toModel(resource, this.resourceServer, authorization), resourceServer, authorization);
+        Resource model = toModel(resource, this.resourceServer, authorization);
+
+        return toRepresentation(model, resourceServer, authorization);
     }
 
     @Path("{id}")

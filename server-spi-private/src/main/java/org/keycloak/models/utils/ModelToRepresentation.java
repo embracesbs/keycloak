@@ -924,7 +924,7 @@ public class ModelToRepresentation {
         
         if (allFields) {
             representation.setResourcesData(policy.getResources().stream().map(
-                    resource -> toRepresentation(resource, resource.getResourceServer(), authorization, true)).collect(Collectors.toSet()));
+                    resource -> toRepresentation(resource, resource.getResourceServer(), authorization)).collect(Collectors.toSet()));
             representation.setScopesData(policy.getScopes().stream().map(
                     resource -> toRepresentation(resource)).collect(Collectors.toSet()));
         }
@@ -952,6 +952,7 @@ public class ModelToRepresentation {
         owner.setId(model.getOwner());
 
         KeycloakSession keycloakSession = authorization.getKeycloakSession();
+
         RealmModel realm = authorization.getRealm();
 
         if (owner.getId().equals(resourceServer.getId())) {
