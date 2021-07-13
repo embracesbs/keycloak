@@ -618,6 +618,11 @@ public class UserCacheSession implements UserCache {
     }
 
     @Override
+    public List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+        return getDelegate().searchForUserByUserAttributePaged(attrName, attrValue, realm, firstResult, maxResults);
+    }
+
+    @Override
     public Set<FederatedIdentityModel> getFederatedIdentities(UserModel user, RealmModel realm) {
         logger.tracev("getFederatedIdentities: {0}", user.getUsername());
 

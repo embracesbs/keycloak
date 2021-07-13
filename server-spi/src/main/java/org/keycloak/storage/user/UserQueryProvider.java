@@ -289,4 +289,21 @@ public interface UserQueryProvider {
      * @return
      */
     List<UserModel> searchForUserByUserAttribute(String attrName, String attrValue, RealmModel realm);
+
+    /**
+     * Search for users that have a specific attribute with a specific value.
+     * Implementations do not have to search in UserFederatedStorageProvider
+     * as this is done automatically.
+     *
+     * @see org.keycloak.storage.federated.UserFederatedStorageProvider
+     *
+     *
+     * @param attrName
+     * @param attrValue
+     * @param realm
+     * @param firstResult
+     * @param maxResults
+     * @return
+     */
+    List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults);
 }
