@@ -256,7 +256,6 @@ public class UserMapStorage implements UserLookupProvider, UserStorageProvider, 
             }
         }
         return importEnabled;
-
     }
 
     public void setImportEnabled(boolean flag) {
@@ -381,6 +380,19 @@ public class UserMapStorage implements UserLookupProvider, UserStorageProvider, 
             return session.userFederatedStorage().getUsersByUserAttribute(realm, attrName, attrValue).stream()
               .map(userName -> createUser(realm, userName))
               .collect(Collectors.toList());
+        }
+    }
+
+    @Override
+    public List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+        if (isImportEnabled()) {
+            return session.userLocalStorage().searchForUserByUserAttributePaged(attrName, attrValue, realm, firstResult, maxResults);
+        } else {
+            return session.userFederatedStorage()
+                    .getUsersByUserAttribute/*Paged*/(realm, attrName, attrValue/*, firstResult, maxResults*/)
+                    .stream()
+                    .map(userName -> createUser(realm, userName))
+                    .collect(Collectors.toList());
         }
     }
 

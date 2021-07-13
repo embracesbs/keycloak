@@ -941,6 +941,28 @@ public class JpaUserProvider implements UserProvider, UserCredentialStore {
         return users;
     }
 
+    @Override
+    public List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+        TypedQuery<UserEntity> query = em.createNamedQuery("getRealmUsersByAttributeNameAndValueOrdered", UserEntity.class);
+        query.setParameter("name", attrName);
+        query.setParameter("value", attrValue);
+        query.setParameter("realmId", realm.getId());
+
+        if (firstResult != -1) {
+            query.setFirstResult(firstResult);
+        }
+        if (maxResults != -1) {
+            query.setMaxResults(maxResults);
+        }
+        List<UserEntity> results = query.getResultList();
+
+        List<UserModel> users = new LinkedList<>();
+        for (UserEntity user : results) {
+            users.add(new UserAdapter(session, realm, em, user));
+        }
+        return users;
+    }
+
     private FederatedIdentityEntity findFederatedIdentity(UserModel user, String identityProvider, LockModeType lockMode) {
         TypedQuery<FederatedIdentityEntity> query = em.createNamedQuery("findFederatedIdentityByUserAndProvider", FederatedIdentityEntity.class);
         UserEntity userEntity = em.getReference(UserEntity.class, user.getId());

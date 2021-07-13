@@ -111,12 +111,9 @@ public class UserStorageManager implements UserProvider, OnUserCache, OnCreateCo
             if (Types.supports(type, factory, UserStorageProviderFactory.class)) {
                 list.add(type.cast(getStorageProviderInstance(session, model, factory)));
             }
-
-
         }
         return list;
     }
-
 
     public static <T> List<T> getEnabledStorageProviders(KeycloakSession session, RealmModel realm, Class<T> type) {
         List<T> list = new LinkedList<>();
@@ -130,12 +127,9 @@ public class UserStorageManager implements UserProvider, OnUserCache, OnCreateCo
             if (Types.supports(type, factory, UserStorageProviderFactory.class)) {
                 list.add(type.cast(getStorageProviderInstance(session, model, factory)));
             }
-
-
         }
         return list;
     }
-
 
     @Override
     public UserModel addUser(RealmModel realm, String id, String username, boolean addDefaultRoles, boolean addDefaultRequiredActions) {
@@ -240,7 +234,6 @@ public class UserStorageManager implements UserProvider, OnUserCache, OnCreateCo
         } else {
             getFederatedStorage().addConsent(realm, userId, consent);
         }
-
     }
 
     @Override
@@ -624,6 +617,26 @@ public class UserStorageManager implements UserProvider, OnUserCache, OnCreateCo
             }
             return Collections.EMPTY_LIST;
         }, realm,0, Integer.MAX_VALUE - 1);
+        return importValidation(realm, results);
+    }
+
+    @Override
+    public List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+        List<UserModel> results = query((provider, first, max) -> {
+            if (provider instanceof UserQueryProvider) {
+                return ((UserQueryProvider)provider).searchForUserByUserAttributePaged(attrName, attrValue, realm, first, max);
+
+            } else if (provider instanceof UserFederatedStorageProvider) {
+                List<String> ids = ((UserFederatedStorageProvider)provider).getUsersByUserAttribute/*Paged*/(realm, attrName, attrValue/*, first, max*/);
+                List<UserModel> rs = new LinkedList<>();
+                for (String id : ids) {
+                    UserModel user = getUserById(id, realm);
+                    if (user != null) rs.add(user);
+                }
+                return rs;
+            }
+            return Collections.EMPTY_LIST;
+        }, realm, firstResult, maxResults);
         return importValidation(realm, results);
     }
 

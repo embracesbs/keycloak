@@ -219,6 +219,11 @@ public class UserPropertyFileStorage implements UserLookupProvider, UserStorageP
     }
 
     @Override
+    public List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+        return Collections.EMPTY_LIST;
+    }
+
+    @Override
     public void close() {
 
     }
