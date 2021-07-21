@@ -195,7 +195,6 @@ public class RealmManager {
             adminCli.setDirectAccessGrantsEnabled(false);
             adminCli.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 
-            // approach no 3 on client creation... after 1 and 2 failed :(
             // service account setup
             adminCli.setServiceAccountsEnabled(true);
             UserModel serviceAccountUser = session.users().getServiceAccount(adminCli);
