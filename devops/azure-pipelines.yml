@@ -23,9 +23,9 @@ variables:
 - name: Version
   value: $(Version.Tag)-$(Version.Revision)
 - name: Docker.ServiceConnectionName
-  value: 'dockerembrace'
+  value: 'embraceclouddocker'
 - name: Docker.Registry
-  value: 'dockerembrace.azurecr.io' 
+  value: 'embraceclouddocker.azurecr.io' 
 - name: Docker.Repository.Name
   value: keycloak-embrace-jdk
 
