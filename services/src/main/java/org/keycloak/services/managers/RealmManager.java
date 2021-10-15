@@ -195,17 +195,19 @@ public class RealmManager {
             adminCli.setDirectAccessGrantsEnabled(false);
             adminCli.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 
-            // service account setup
-            adminCli.setServiceAccountsEnabled(true);
-            UserModel serviceAccountUser = session.users().getServiceAccount(adminCli);
-            if (serviceAccountUser == null) {
-                new ClientManager(this).enableServiceAccount(adminCli);
-            }
-            serviceAccountUser = session.users().getServiceAccount(adminCli);
+            if (realm.getName().equals(Config.getAdminRealm())) {
+                // setup service account ...
+                adminCli.setServiceAccountsEnabled(true);
+                UserModel serviceAccountUser = session.users().getServiceAccount(adminCli);
+                if (serviceAccountUser == null) {
+                    new ClientManager(this).enableServiceAccount(adminCli);
+                }
+                serviceAccountUser = session.users().getServiceAccount(adminCli);
 
-            // add service account role 'admin'
-            RoleModel adminRole = realm.getRole(AdminRoles.ADMIN);
-            serviceAccountUser.grantRole(adminRole);
+                // add service account role 'admin'
+                RoleModel adminRole = realm.getRole(AdminRoles.ADMIN);
+                serviceAccountUser.grantRole(adminRole);
+            }
         }
     }
 

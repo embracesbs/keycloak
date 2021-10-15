@@ -244,13 +244,16 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
     }
 
     default String[] getMultiTenantServiceAccountRoles() {
-        String multiTenantAttribute = getAttribute(MULTI_TENANT_SERVICE_ACCOUNT_ROLES);
-        if (multiTenantAttribute != null) {
-            String[] splitter = multiTenantAttribute.split(",");
-            Arrays.stream(splitter).map(String::trim).toArray(unused -> splitter);
-            return splitter;
-        }
-        return new String[0];
+        return getMultiTenantServiceAccountRoles(getAttributes());
     }
 
+    default String[] getMultiTenantServiceAccountRoles(Map<String, String> attributes) {
+        if (attributes == null || !attributes.containsKey(MULTI_TENANT_SERVICE_ACCOUNT_ROLES))
+            return new String[0];
+
+        String multiTenantAttribute = attributes.get(MULTI_TENANT_SERVICE_ACCOUNT_ROLES);
+        String[] splitter = multiTenantAttribute.split(",");
+        Arrays.stream(splitter).map(String::trim).toArray(unused -> splitter);
+        return splitter;
+    }
 }

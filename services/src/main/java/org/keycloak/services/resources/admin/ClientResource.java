@@ -20,6 +20,8 @@ import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.BadRequestException;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
+import org.keycloak.Config;
+import org.keycloak.OAuthErrorException;
 import org.keycloak.authorization.admin.AuthorizationService;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.common.Profile;
@@ -79,12 +81,7 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 import static java.lang.Boolean.TRUE;
 import org.keycloak.utils.ReservedCharValidator;
@@ -152,6 +149,40 @@ public class ClientResource {
             );
         }
 
+        // detect if this is the multi-tenant case - mt-case => master realm mt-client
+        // if t-case == true
+        // validate if resource-server functionality is removed -> disallow!
+        // if ^^^ true validation error!
+        // only allow for system roles change!
+        // todo: handle renaming of non-resource server?
+        // -> should rename all realm instances?
+
+        ClientManager manager = new ClientManager(new RealmManager(session));
+
+        // is client is multi tenant client in 'master' realm ... do the MT voodoo ...
+        if (TRUE.equals(client.getMultiTenant()) && realm.getName().equals(Config.getAdminRealm())) {
+
+            // disallow name change for existing multi-tenant client with authorization enabled (resource server)
+            if (!rep.getClientId().equalsIgnoreCase(client.getClientId()) && IsResourceServerClient()) {
+                session.getTransactionManager().setRollbackOnly();
+                throw new ErrorResponseException(Errors.NOT_ALLOWED, "Multi-tenant resource server name change is forbidden!", Response.Status.FORBIDDEN);
+            }
+
+            // disallow multi-tenant client resource server function disablement
+            if (IsResourceServerClient() && HasNoAuthorisationRoleSet(rep)) {
+                session.getTransactionManager().setRollbackOnly();
+                throw new ErrorResponseException(Errors.NOT_ALLOWED, "Multi-tenant client: resource server function disablement is forbidden!", Response.Status.FORBIDDEN);
+            }
+
+            boolean updateSuccess = manager.updateMultiTenantClientRegistrations(session, realm, client, rep);
+
+            if (!updateSuccess) {
+                session.getTransactionManager().setRollbackOnly();
+                throw new ErrorResponseException(OAuthErrorException.SERVER_ERROR, "Multi-tenant client update failed at realm instance level.", Response.Status.INTERNAL_SERVER_ERROR);
+            }
+        }
+
+        // todo: check the legacy functionality! should NOT break for legacy update!
         try {
             updateClientFromRep(rep, client, session);
 
@@ -165,6 +196,14 @@ public class ClientResource {
         } catch (ModelDuplicateException e) {
             return ErrorResponse.exists("Client already exists");
         }
+    }
+
+    private boolean HasNoAuthorisationRoleSet(ClientRepresentation rep) {
+        return (Arrays.stream(client.getMultiTenantServiceAccountRoles(rep.getAttributes())).noneMatch(r -> r.contains("-authorization")));
+    }
+
+    private boolean IsResourceServerClient() {
+        return (Arrays.stream(client.getMultiTenantServiceAccountRoles()).anyMatch(r -> r.contains("-authorization")));
     }
 
     /**
@@ -434,7 +473,6 @@ public class ClientResource {
 
         adminEvent.operation(OperationType.ACTION).resourcePath(session.getContext().getUri()).resource(ResourceType.CLIENT).success();
         return new ResourceAdminManager(session).pushClientRevocationPolicy(realm, client);
-
     }
 
     /**
@@ -673,7 +711,6 @@ public class ClientResource {
             return new ManagementPermissionReference();
         }
     }
-
 
     private void updateClientFromRep(ClientRepresentation rep, ClientModel client, KeycloakSession session) throws ModelDuplicateException {
         UserModel serviceAccount = this.session.users().getServiceAccount(client);

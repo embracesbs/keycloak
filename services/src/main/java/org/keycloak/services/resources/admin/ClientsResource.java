@@ -217,9 +217,12 @@ public class ClientsResource {
             }
 
             // is client is multi tenant client in 'master' realm ... do the MT voodoo ...
-            if (TRUE.equals(manager.isMultiTenantClientRepresentation(rep))
-                    && realm.getName().equals(Config.getAdminRealm())) {
-                manager.setupMultiTenantClientRegistrations(session, realm, clientModel, rep);
+            if (TRUE.equals(manager.isMultiTenantClientRepresentation(rep)) && realm.getName().equals(Config.getAdminRealm())) {
+                boolean creationSuccess = manager.setupMultiTenantClientRegistrations(session, realm, clientModel, rep);
+                if (!creationSuccess) {
+                    session.getTransactionManager().setRollbackOnly();
+                    throw new ErrorResponseException(Errors.INVALID_INPUT, "multi-tenant client instances registrations failed!", Response.Status.BAD_REQUEST);
+                }
             }
 
             ClientValidationUtil.validate(session, clientModel, true, c -> {
