@@ -102,7 +102,7 @@ public class ClientManager {
         UserModel mtClientServiceAccount = realmManager.getSession().users().getServiceAccount(mtClient);
 
         String[] serviceAccountRoles = mtClient.getMultiTenantServiceAccountRoles(clientRepresentation.getAttributes());
-        boolean isResourceServerClient = ContaintsResourceServerRole(serviceAccountRoles);
+        boolean isResourceServerClient = ContainsResourceServerRole(serviceAccountRoles);
 
         List<RealmModel> realms = session.realms().getRealms();
 
@@ -195,7 +195,7 @@ public class ClientManager {
         return TRUE;
     }
 
-    private boolean ContaintsResourceServerRole(String[] serviceAccountRoles) {
+    private boolean ContainsResourceServerRole(String[] serviceAccountRoles) {
         return Arrays.stream(serviceAccountRoles).anyMatch(r -> r.contains("-authorization"));
     }
 
@@ -210,7 +210,7 @@ public class ClientManager {
         UserModel mtClientServiceAccount = realmManager.getSession().users().getServiceAccount(mtClientCurrent);
 
         String[] serviceAccountRoles = mtClientCurrent.getMultiTenantServiceAccountRoles(updateClientRepresentation.getAttributes());
-        boolean isResourceServerClient = ContaintsResourceServerRole(serviceAccountRoles);
+        boolean isResourceServerClient = ContainsResourceServerRole(serviceAccountRoles);
 
         boolean isClientIdUpdateCase = !updateClientRepresentation.getClientId().equalsIgnoreCase(mtClientCurrent.getClientId());
 
