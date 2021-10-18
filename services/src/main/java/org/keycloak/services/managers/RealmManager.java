@@ -769,6 +769,15 @@ public class RealmManager {
             mtClientRepLocal.setOptionalClientScopes(null);
             mtClientRepLocal.setServiceAccountsEnabled(true);
 
+            // set proper description:
+            // -> replace [multi-tenant] with [multi-tenant instance]
+            String instanceDescription = mtClientRepLocal.getDescription();
+            if (instanceDescription.contains(ClientManager.multiTenantDescriptionSuffix)) {
+                instanceDescription  = instanceDescription.replace(ClientManager.multiTenantDescriptionSuffix, ClientManager.multiTenantInstanceDescriptionSuffix);
+            }
+
+            mtClientRepLocal.setDescription(instanceDescription);
+
             // get service account roles from attributes
             String[] providedRoles = multiTenantClient.getMultiTenantServiceAccountRoles();
 
@@ -803,6 +812,9 @@ public class RealmManager {
                     mtClientRepLocal.setClientId(realmClient.getId());
                     RepresentationToModel.toModel(authorizationSettings, authorization);
                 }
+
+                // -> add [resource-server] suffix
+                realmClient.setDescription(String.format("%s %s", instanceDescription, ClientManager.resourceServerDescriptionSuffix));
             }
 
             // find related master admin app by name "{realmName}-realm"

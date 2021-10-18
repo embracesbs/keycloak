@@ -55,8 +55,13 @@ import static java.lang.Boolean.TRUE;
  */
 public class ClientManager {
     private static final Logger logger = Logger.getLogger(ClientManager.class);
+    public static final String multiTenantDescriptionSuffix = "[multi-tenant]";
+    public static final String multiTenantInstanceDescriptionSuffix = "[multi-tenant instance]";
+    public static final String resourceServerDescriptionSuffix = "[resource-server]";
 
     protected RealmManager realmManager;
+
+
 
     public ClientManager(RealmManager realmManager) {
         this.realmManager = realmManager;
@@ -92,10 +97,10 @@ public class ClientManager {
     }
 
     // MULTI_TENANT_CLIENT =>
-    // 'public=false',
-    // 'serviceAccountEnabled=true',
-    // has attribute 'multi.tenant.client'=true,
-    // has attribute "multi.tenant.service.account.roles"
+    //   'public=false',
+    //   'serviceAccountEnabled=true',
+    //   has attribute 'multi.tenant.client'=true,
+    //   has attribute "multi.tenant.service.account.roles"
     public boolean setupMultiTenantClientRegistrations(KeycloakSession session, RealmModel adminRealm, ClientModel mtClient, ClientRepresentation clientRepresentation) {
 
         // find service account user for this mt-client
@@ -120,7 +125,7 @@ public class ClientManager {
             realmClientRep.setOptionalClientScopes(null);
             realmClientRep.setServiceAccountsEnabled(true);
 
-            realmClientRep.setDescription(clientRepresentation.getDescription() + " [multi-tenant instance]");
+            realmClientRep.setDescription(String.format("%s %s", clientRepresentation.getDescription(), multiTenantInstanceDescriptionSuffix));
 
             ClientModel realmInstanceClient = createClient(session, realmElement, realmClientRep, true);
 
@@ -135,7 +140,7 @@ public class ClientManager {
             // this effectively means that the client we are creating should be a Resource Server!
             if (isResourceServerClient) {
                 realmClientRep.setAuthorizationServicesEnabled(TRUE);
-                realmInstanceClient.setDescription(realmClientRep.getDescription() + " [resource-server]");
+                realmInstanceClient.setDescription(String.format("%s %s", realmClientRep.getDescription(), resourceServerDescriptionSuffix));
             }
 
             if (TRUE.equals(realmClientRep.getAuthorizationServicesEnabled())) {
@@ -190,20 +195,11 @@ public class ClientManager {
         // and role to the Service Account user of the master mt-client
         mtClientServiceAccount.grantRole(foundRole);
 
-        // update description
-        mtClient.setDescription((clientRepresentation.getDescription() == null ? "" : clientRepresentation.getDescription() + " ") + "[multi-tenant]");
+        // update description on mt-client create
+        mtClient.setDescription((clientRepresentation.getDescription() == null ? "" : clientRepresentation.getDescription() + " ") + multiTenantDescriptionSuffix);
         return TRUE;
     }
 
-    private boolean ContainsResourceServerRole(String[] serviceAccountRoles) {
-        return Arrays.stream(serviceAccountRoles).anyMatch(r -> r.contains("-authorization"));
-    }
-
-    // MULTI_TENANT_CLIENT =>
-    // 'public=false',
-    // 'serviceAccountEnabled=true',
-    // has attribute 'multi.tenant.client'=true,
-    // has attribute "multi.tenant.service.account.roles"
     public boolean updateMultiTenantClientRegistrations(KeycloakSession session, RealmModel adminRealm, ClientModel mtClientCurrent, ClientRepresentation updateClientRepresentation) {
 
         // find service account user for this mt-client
@@ -213,6 +209,7 @@ public class ClientManager {
         boolean isResourceServerClient = ContainsResourceServerRole(serviceAccountRoles);
 
         boolean isClientIdUpdateCase = !updateClientRepresentation.getClientId().equalsIgnoreCase(mtClientCurrent.getClientId());
+        boolean isNameUpdateCase = !updateClientRepresentation.getName().equalsIgnoreCase(mtClientCurrent.getName());
 
         if (isResourceServerClient) {
             // some updates to the master instance client?
@@ -227,6 +224,12 @@ public class ClientManager {
             // get current realm mt-client instance
             ClientModel realmMtClient = session.clientStorageManager().getClientByClientId(mtClientCurrent.getClientId(), realmElement);
 
+            if (realmMtClient == null) {
+                // log error!
+                // someone deleted instance mt client!
+                // warn inconsistent data!
+            }
+
             // create updated client representation by deep cloning the rep object
             ClientRepresentation realmClientRep = deepCopy(updateClientRepresentation);
             realmClientRep.setId(realmMtClient.getId());
@@ -234,6 +237,24 @@ public class ClientManager {
             // update name
             if (isClientIdUpdateCase) {
                 realmMtClient.setClientId(realmClientRep.getClientId());
+            }
+
+            if (isNameUpdateCase) {
+                realmMtClient.setName(realmClientRep.getName());
+            }
+
+            // update description in instance client if needed
+            String repDescription = updateClientRepresentation.getDescription();
+            if (repDescription == null || repDescription.isEmpty()) {
+                repDescription = multiTenantInstanceDescriptionSuffix;
+            } else{
+                repDescription = repDescription.contains(multiTenantInstanceDescriptionSuffix) ? repDescription : String.format("%s %s", repDescription, multiTenantInstanceDescriptionSuffix);
+            }
+            realmMtClient.setDescription(repDescription);
+
+            // update attributes (inline)!
+            for (Map.Entry<String, String> entry : RepresentationToModel.removeEmptyString(realmClientRep.getAttributes()).entrySet()) {
+                realmMtClient.setAttribute(entry.getKey(), entry.getValue());
             }
 
             // determine if Authorization Service needs to be enabled!
@@ -265,10 +286,11 @@ public class ClientManager {
                         realmClientRep.setClientId(realmMtClient.getId());
                         RepresentationToModel.toModel(authorizationSettings, authorization);
                     }
-
-                    // update description
-                    realmMtClient.setDescription(realmMtClient.getDescription() + " [resource-server]");
                 }
+
+                // update description
+                realmMtClient.setDescription(String.format("%s %s", repDescription, resourceServerDescriptionSuffix));
+
             }
 
             // find realm admin apps by name "{realmName}-realm"
@@ -294,7 +316,6 @@ public class ClientManager {
             }
         }
 
-        // todo: do we need this for mt-client update??? it should already be set in create!!!
         // find master admin apps by name "master-realm"
         String masterRealmAppName = String.format("%s%s", adminRealm.getName(), AdminRoles.APP_SUFFIX);
         ClientModel masterRealmApp = adminRealm.getClientByClientId(masterRealmAppName);
@@ -310,9 +331,17 @@ public class ClientManager {
         // and role to the Service Account user of the master mt-client
         mtClientServiceAccount.grantRole(foundRole);
 
+        // update description in representation if needed
+        String repDescription = updateClientRepresentation.getDescription();
+        if (repDescription == null || repDescription.isEmpty()) {
+            repDescription = multiTenantDescriptionSuffix;
+        } else{
+            repDescription = repDescription.contains(multiTenantDescriptionSuffix) ? repDescription : String.format("%s %s", repDescription, multiTenantDescriptionSuffix);
+        }
+        updateClientRepresentation.setDescription(repDescription);
+
         return TRUE;
     }
-
 
     public boolean removeClient(RealmModel realm, ClientModel client) {
         if (realm.removeClient(client.getId())) {
@@ -580,6 +609,10 @@ public class ClientManager {
         }
         buffer.append("</secure-deployment>\n");
         return buffer.toString();
+    }
+
+    private boolean ContainsResourceServerRole(String[] serviceAccountRoles) {
+        return Arrays.stream(serviceAccountRoles).anyMatch(r -> r.contains("-authorization"));
     }
 
     private boolean showClientCredentialsAdapterConfig(ClientModel client) {

@@ -24,7 +24,6 @@ import org.keycloak.Config;
 import org.keycloak.OAuthErrorException;
 import org.keycloak.authorization.admin.AuthorizationService;
 import org.keycloak.common.ClientConnection;
-import org.keycloak.common.Profile;
 import org.keycloak.common.util.Time;
 import org.keycloak.events.Errors;
 import org.keycloak.events.admin.OperationType;
@@ -65,7 +64,6 @@ import org.keycloak.services.resources.admin.permissions.AdminPermissions;
 import org.keycloak.services.validation.ClientValidator;
 import org.keycloak.services.validation.PairwiseClientValidator;
 import org.keycloak.services.validation.ValidationMessages;
-import org.keycloak.utils.ProfileHelper;
 import org.keycloak.validation.ClientValidationUtil;
 
 import javax.ws.rs.Consumes;
@@ -149,29 +147,21 @@ public class ClientResource {
             );
         }
 
-        // detect if this is the multi-tenant case - mt-case => master realm mt-client
-        // if t-case == true
-        // validate if resource-server functionality is removed -> disallow!
-        // if ^^^ true validation error!
-        // only allow for system roles change!
-        // todo: handle renaming of non-resource server?
-        // -> should rename all realm instances?
-
         ClientManager manager = new ClientManager(new RealmManager(session));
 
-        // is client is multi tenant client in 'master' realm ... do the MT voodoo ...
-        if (TRUE.equals(client.getMultiTenant()) && realm.getName().equals(Config.getAdminRealm())) {
-
-            // disallow name change for existing multi-tenant client with authorization enabled (resource server)
-            if (!rep.getClientId().equalsIgnoreCase(client.getClientId()) && IsResourceServerClient()) {
-                session.getTransactionManager().setRollbackOnly();
-                throw new ErrorResponseException(Errors.NOT_ALLOWED, "Multi-tenant resource server name change is forbidden!", Response.Status.FORBIDDEN);
-            }
+        // if case of multi-tenant client in 'master' realm ... do the MT update voodoo ...
+        if (IsMultiTenantClient() && realm.getName().equals(Config.getAdminRealm())) {
 
             // disallow multi-tenant client resource server function disablement
-            if (IsResourceServerClient() && HasNoAuthorisationRoleSet(rep)) {
+            if (IsMultiTenantResourceServerClient() && HasNoAuthorisationRoleSet(rep)) {
                 session.getTransactionManager().setRollbackOnly();
                 throw new ErrorResponseException(Errors.NOT_ALLOWED, "Multi-tenant client: resource server function disablement is forbidden!", Response.Status.FORBIDDEN);
+            }
+
+            // disallow name change for existing multi-tenant client with authorization enabled (resource server)
+            if (!rep.getClientId().equalsIgnoreCase(client.getClientId()) && IsMultiTenantResourceServerClient()) {
+                session.getTransactionManager().setRollbackOnly();
+                throw new ErrorResponseException(Errors.NOT_ALLOWED, "Multi-tenant resource server clientID change is forbidden!", Response.Status.FORBIDDEN);
             }
 
             boolean updateSuccess = manager.updateMultiTenantClientRegistrations(session, realm, client, rep);
@@ -182,7 +172,6 @@ public class ClientResource {
             }
         }
 
-        // todo: check the legacy functionality! should NOT break for legacy update!
         try {
             updateClientFromRep(rep, client, session);
 
@@ -202,8 +191,12 @@ public class ClientResource {
         return (Arrays.stream(client.getMultiTenantServiceAccountRoles(rep.getAttributes())).noneMatch(r -> r.contains("-authorization")));
     }
 
-    private boolean IsResourceServerClient() {
-        return (Arrays.stream(client.getMultiTenantServiceAccountRoles()).anyMatch(r -> r.contains("-authorization")));
+    private boolean IsMultiTenantResourceServerClient() {
+        return (IsMultiTenantClient() && Arrays.stream(client.getMultiTenantServiceAccountRoles()).anyMatch(r -> r.contains("-authorization")));
+    }
+
+    private boolean IsMultiTenantClient() {
+        return (TRUE.equals(client.getMultiTenant()));
     }
 
     /**
@@ -257,6 +250,11 @@ public class ClientResource {
 
         if (client == null) {
             throw new NotFoundException("Could not find client");
+        }
+
+        // prevent deletion of multi-tenant resource servers (both master and realm instances)
+        if (IsMultiTenantResourceServerClient()) {
+            throw new ErrorResponseException(Errors.NOT_ALLOWED, "Resource-server multi-tenant client deletion is forbidden!", Response.Status.FORBIDDEN);
         }
 
         new ClientManager(new RealmManager(session)).removeClient(realm, client);
