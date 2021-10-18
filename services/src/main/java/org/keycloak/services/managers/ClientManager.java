@@ -225,9 +225,9 @@ public class ClientManager {
             ClientModel realmMtClient = session.clientStorageManager().getClientByClientId(mtClientCurrent.getClientId(), realmElement);
 
             if (realmMtClient == null) {
-                // log error!
-                // someone deleted instance mt client!
-                // warn inconsistent data!
+                // someone deleted instance mt client manually?!
+                logger.warnf("Instance multi-tenant client [%s] couldn't be found in realm [%s]! ", mtClientCurrent.getClientId(), realmElement.getName());
+                continue;
             }
 
             // create updated client representation by deep cloning the rep object
