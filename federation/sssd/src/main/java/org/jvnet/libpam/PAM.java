@@ -77,26 +77,28 @@ public class PAM {
      *                    in the PAM configuration,
      */
     public PAM(String serviceName) throws PAMException {
-        pam_conv conv = new pam_conv((num_msg, msg, resp, pointer) -> {
-            LOGGER.debug("pam_conv num_msg=" + num_msg);
-            if (factors == null)
-                return PAM_CONV_ERR;
+        pam_conv conv = new pam_conv(new PamCallback() {
+            public int callback(int num_msg, Pointer msg, Pointer resp, Pointer _) {
+                LOGGER.debug("pam_conv num_msg=" + num_msg);
+                if (factors == null)
+                    return PAM_CONV_ERR;
 
-            // allocates pam_response[num_msg]. the caller will free this
-            Pointer m = libc.calloc(pam_response.SIZE, num_msg);
-            resp.setPointer(0, m);
+                // allocates pam_response[num_msg]. the caller will free this
+                Pointer m = libc.calloc(pam_response.SIZE, num_msg);
+                resp.setPointer(0, m);
 
-            for (int i = 0; i < factors.length; i++) {
-                pam_message pm = new pam_message(msg.getPointer((long) POINTER_SIZE * i));
-                LOGGER.debug(pm.msg_style + ":" + pm.msg);
-                if (pm.msg_style == PAM_PROMPT_ECHO_OFF) {
-                    pam_response r = new pam_response(m.share((long) pam_response.SIZE * i));
-                    r.setResp(factors[i]);
-                    r.write(); // write to (*resp)[i]
+                for (int i = 0; i < factors.length; i++) {
+                    pam_message pm = new pam_message(msg.getPointer(POINTER_SIZE * i));
+                    LOGGER.debug(pm.msg_style + ":" + pm.msg);
+                    if (pm.msg_style == PAM_PROMPT_ECHO_OFF) {
+                        pam_response r = new pam_response(m.share(pam_response.SIZE * i));
+                        r.setResp(factors[i]);
+                        r.write(); // write to (*resp)[i]
+                    }
                 }
-            }
 
-            return PAM_SUCCESS;
+                return PAM_SUCCESS;
+            }
         });
 
         PointerByReference phtr = new PointerByReference();
