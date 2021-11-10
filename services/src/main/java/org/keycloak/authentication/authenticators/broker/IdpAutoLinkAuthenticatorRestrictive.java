@@ -1,0 +1,81 @@
+/*
+ * Copyright 2016 Red Hat, Inc. and/or its affiliates
+ * and other contributors as indicated by the @author tags.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.keycloak.authentication.authenticators.broker;
+
+import org.jboss.logging.Logger;
+import org.keycloak.authentication.AuthenticationFlowContext;
+import org.keycloak.authentication.authenticators.broker.util.SerializedBrokeredIdentityContext;
+import org.keycloak.broker.provider.BrokeredIdentityContext;
+import org.keycloak.credential.CredentialModel;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
+import org.keycloak.sessions.AuthenticationSessionModel;
+
+import java.util.List;
+
+/**
+ * @author <a href="mailto:Ryan.Slominski@gmail.com">Ryan Slominski</a>
+ */
+public class IdpAutoLinkAuthenticatorRestrictive extends AbstractIdpAuthenticator {
+
+    private static Logger logger = Logger.getLogger(IdpAutoLinkAuthenticatorRestrictive.class);
+
+    @Override
+    protected void authenticateImpl(AuthenticationFlowContext context, SerializedBrokeredIdentityContext serializedCtx, BrokeredIdentityContext brokerContext) {
+        KeycloakSession session = context.getSession();
+        RealmModel realm = context.getRealm();
+        AuthenticationSessionModel authSession = context.getAuthenticationSession();
+
+        UserModel existingUser = getExistingUser(session, realm, authSession);
+
+        List<CredentialModel> passwordCredentials = session.userCredentialManager().getStoredCredentialsByType(realm, existingUser, "password");
+
+        // auto-link if following condition is met: 1. existing user has not set password! 2. existing user has email verified
+
+        // do NOT auto-link if existing user has set password and email is not verified!
+        if (!passwordCredentials.isEmpty() && !existingUser.isEmailVerified()) {
+            logger.debugf("Failed auto-link (secure) condition for user '%s'.", existingUser.getUsername());
+            context.attempted();
+            return;
+        }
+
+        logger.debugf("User '%s' is set to authentication context when link with identity provider '%s' . " +
+                        "Identity provider username is '%s' ", existingUser.getUsername(),
+                brokerContext.getIdpConfig().getAlias(), brokerContext.getUsername());
+
+        context.setUser(existingUser);
+        context.success();
+    }
+
+    @Override
+    protected void actionImpl(AuthenticationFlowContext context, SerializedBrokeredIdentityContext serializedCtx, BrokeredIdentityContext brokerContext) {
+        authenticateImpl(context, serializedCtx, brokerContext);
+    }
+
+    @Override
+    public boolean requiresUser() {
+        return false;
+    }
+
+    @Override
+    public boolean configuredFor(KeycloakSession session, RealmModel realm, UserModel user) {
+        return false;
+    }
+
+}

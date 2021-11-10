@@ -172,6 +172,7 @@ public class ProvidersTest extends AbstractAuthenticationTest {
         addProviderInfo(result, "http-basic-authenticator", "HTTP Basic Authentication", "Validates username and password from Authorization HTTP header");
         addProviderInfo(result, "identity-provider-redirector", "Identity Provider Redirector", "Redirects to default Identity Provider or Identity Provider specified with kc_idp_hint query parameter");
         addProviderInfo(result, "idp-auto-link", "Automatically set existing user", "Automatically set existing user to authentication context without any verification");
+        addProviderInfo(result, "idp-auto-link-restrictive", "Automatically set existing user using custom restrictions", "Automatically set existing user to authentication context if existing user password is set and/or existing user has email verified");
         addProviderInfo(result, "idp-confirm-link", "Confirm link existing account", "Show the form where user confirms if he wants " +
                 "to link identity provider with existing account or rather edit user profile data retrieved from identity provider to avoid conflict");
         addProviderInfo(result, "idp-create-user-if-unique", "Create User If Unique", "Detect if there is existing Keycloak account " +
