@@ -79,7 +79,7 @@ public class IdpAutoLinkAuthenticatorRestrictiveFactory implements Authenticator
 
     @Override
     public String getHelpText() {
-        return "Automatically set existing user to authentication context with following verification: local user has not set password or local user has email verified.";
+        return "Automatically set existing user to authentication context using following condition: existing user password is not set or existing user has verified email.";
     }
 
     @Override
