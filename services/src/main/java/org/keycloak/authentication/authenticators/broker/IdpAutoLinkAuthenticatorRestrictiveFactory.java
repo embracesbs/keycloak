@@ -27,9 +27,6 @@ import org.keycloak.provider.ProviderConfigProperty;
 
 import java.util.List;
 
-/**
- * @author <a href="mailto:Ryan.Slominski@gmail.com">Ryan Slominski</a>
- */
 public class IdpAutoLinkAuthenticatorRestrictiveFactory implements AuthenticatorFactory {
     public static final String PROVIDER_ID = "idp-auto-link-restrictive";
     static IdpAutoLinkAuthenticatorRestrictive SINGLETON = new IdpAutoLinkAuthenticatorRestrictive();
