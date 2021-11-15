@@ -30,7 +30,7 @@ import org.keycloak.sessions.AuthenticationSessionModel;
 import java.util.List;
 
 /**
- * @author <a href="mailto:Ryan.Slominski@gmail.com">Ryan Slominski</a>
+ * auto-link if following condition is met: 1. existing user has not password set! 2. existing user has email verified
  */
 public class IdpAutoLinkAuthenticatorRestrictive extends AbstractIdpAuthenticator {
 
@@ -46,9 +46,7 @@ public class IdpAutoLinkAuthenticatorRestrictive extends AbstractIdpAuthenticato
 
         List<CredentialModel> passwordCredentials = session.userCredentialManager().getStoredCredentialsByType(realm, existingUser, "password");
 
-        // auto-link if following condition is met: 1. existing user has not set password! 2. existing user has email verified
-
-        // do NOT auto-link if existing user has set password and email is not verified!
+        // do NOT auto-link if existing user has password set and email is not verified!
         if (!passwordCredentials.isEmpty() && !existingUser.isEmailVerified()) {
             logger.debugf("Failed auto-link (secure) condition for user '%s'.", existingUser.getUsername());
             context.attempted();
