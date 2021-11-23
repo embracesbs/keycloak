@@ -27,8 +27,10 @@ import org.keycloak.authorization.model.ResourceServer;
 import org.keycloak.authorization.store.ResourceServerStore;
 import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.common.util.Time;
+import org.keycloak.constants.EmbraceMultiTenantConstants;
 import org.keycloak.models.*;
 import org.keycloak.models.session.UserSessionPersisterProvider;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.RepresentationToModel;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.LoginProtocolFactory;
@@ -60,8 +62,6 @@ public class ClientManager {
     public static final String resourceServerDescriptionSuffix = "[resource-server]";
 
     protected RealmManager realmManager;
-
-
 
     public ClientManager(RealmManager realmManager) {
         this.realmManager = realmManager;
@@ -178,6 +178,7 @@ public class ClientManager {
                 // and role to the Service Account user of the master mt-client
                 mtClientServiceAccount.grantRole(foundRole);
             }
+
         }
 
         // find master admin apps by name "master-realm"
@@ -194,6 +195,15 @@ public class ClientManager {
 
         // and role to the Service Account user of the master mt-client
         mtClientServiceAccount.grantRole(foundRole);
+
+        // scoped jwt roles support
+        // in master realm should have set client scopes for each realm 'identity-provider-user-[realm_name]'
+        // collect the all specialized client-scope by prefix and add them as optional scope to mt-client
+        List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(adminRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
+        for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
+        {
+            mtClient.addClientScope(ipuRealmScope, false);
+        }
 
         // update description on mt-client create
         mtClient.setDescription((clientRepresentation.getDescription() == null ? "" : clientRepresentation.getDescription() + " ") + multiTenantDescriptionSuffix);
@@ -330,6 +340,15 @@ public class ClientManager {
 
         // and role to the Service Account user of the master mt-client
         mtClientServiceAccount.grantRole(foundRole);
+
+        // scoped jwt roles support
+        // in master realm should have set client scopes for each realm 'identity-provider-user-[realm_name]'
+        // collect the all specialized client-scope by prefix and add them as optional scope to mt-client
+        List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(adminRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
+        for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
+        {
+            mtClientCurrent.addClientScope(ipuRealmScope, false);
+        }
 
         // update description in representation if needed
         String repDescription = updateClientRepresentation.getDescription();

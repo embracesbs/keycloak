@@ -26,6 +26,7 @@ import org.keycloak.authorization.store.PolicyStore;
 import org.keycloak.authorization.store.ResourceServerStore;
 import org.keycloak.common.util.Resteasy;
 import org.keycloak.config.ConfigProviderFactory;
+import org.keycloak.constants.EmbraceMultiTenantConstants;
 import org.keycloak.exportimport.ExportImportManager;
 import org.keycloak.migration.MigrationModelManager;
 import org.keycloak.models.*;
@@ -74,6 +75,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static java.lang.Boolean.TRUE;
 
@@ -211,6 +213,7 @@ public class KeycloakApplication extends Application {
             // once-run embrace data migration:
             embraceMigration01();
             embraceMigration02();
+            embraceMigration03();
 
         } catch (RuntimeException re) {
             if (session.getTransactionManager().isActive()) {
@@ -231,7 +234,6 @@ public class KeycloakApplication extends Application {
 
         return exportImportManager;
     }
-
 
     protected void migrateModel() {
         KeycloakSession session = sessionFactory.create();
@@ -415,6 +417,102 @@ public class KeycloakApplication extends Application {
             throw e;
         } finally {
             session.close();
+        }
+    }
+
+    protected void embraceMigration03() {
+        logger.infov("Embrace data migration script 03 ...");
+
+        KeycloakSession sessionA = sessionFactory.create();
+
+        // 03a. Multi-tenant Clients Specialized Client Scopes
+        logger.infov("03a. Multi-tenant Clients Specialized Client Scopes Migration - add missing master scopes!");
+        try {
+            sessionA.getTransactionManager().begin();
+
+            // check if master exists (first start!)
+            RealmModel masterRealm = sessionA.realms().getRealm(Config.getAdminRealm());
+            if (null == masterRealm) return; //ths is first app start against empty DB => no migration needed
+
+            // a. For every client realm create specialized multi-tenant client scope:
+            List<RealmModel> realms = sessionA.realms().getRealms();
+
+            // foreach user realm, foreach mt-client instance
+            for (RealmModel clientRealm : realms) {
+
+                // exclude "master"
+                if (clientRealm.getName().equals(Config.getAdminRealm()))
+                    continue;
+
+                logger.infov("Multi-tenant clients specialized client scopes migration - Changing the scope to client realm {0} ....", clientRealm.getName());
+
+                String realmRelatedScopeName = EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX + clientRealm.getName();
+
+                logger.infov("Multi-tenant clients specialized client scopes migration - Searching for master scope {0} ....", realmRelatedScopeName);
+
+                List<ClientScopeModel> masterClientScopesCurrent = masterRealm.getClientScopes();
+                if (masterClientScopesCurrent.stream().map((ClientScopeModel model) -> model.getName()).collect(Collectors.toList()).contains(realmRelatedScopeName)) {
+                    logger.infov("Multi-tenant clients specialized client scopes migration - realm specific client scope {0} found in {1} realm. Continue to another client realm!", realmRelatedScopeName, clientRealm.getName());
+                    continue;
+                }
+
+                logger.infov("Multi-tenant clients specialized client scopes migration - realm related master scope {0} not fond. Creating!!", realmRelatedScopeName);
+
+                ClientScopeModel newScope = RealmManager.setupMultiTenantClientSpecificClientScope(clientRealm, masterRealm);
+
+                if (newScope != null) {
+                    logger.infov("Multi-tenant clients specialized client scopes migration - realm related master scope {0} created successfully", realmRelatedScopeName);
+                }
+            }
+        } catch (Exception e) {
+            logger.infov("Multi-tenant clients specialized client scopes migration - Failed! :: {0}", e.getMessage());
+            sessionA.getTransactionManager().rollback();
+            throw e;
+        } finally {
+            sessionA.close();
+        }
+
+        KeycloakSession sessionB = sessionFactory.create();
+
+        logger.infov("03b. Multi-tenant Clients Specialized Client Scopes Migration - update existing multi-tenant clients!");
+        try {
+            sessionB.getTransactionManager().begin();
+
+            // check if master exists (first start!)
+            RealmModel masterRealm = sessionB.realms().getRealm(Config.getAdminRealm());
+            if (null == masterRealm) return; //ths is first app start against empty DB => no migration needed
+
+            // b. search for multi-tenant clients and update they're optional client scopes
+            logger.infov("Multi-tenant clients specialized client scopes migration - Searching for existing multi-tenant clients ...");
+            List<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().getClientsByAttribute(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+
+            if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
+                logger.infov("Multi-tenant clients specialized client scopes migration - None of existing multi-tenant clients found. End migration!");
+                return; // no multi-tenant clients found
+            }
+
+            // foreach existing mt-client
+            for (ClientModel multiTenantClient : multiTenantMasterClients) {
+                logger.infov("Multi-tenant clients specialized client scopes migration - Adding optional client scopes to mt-client with name {0} ....", multiTenantClient.getClientId());
+
+                // set client scopes
+                List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
+                for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
+                {
+                    multiTenantClient.addClientScope(ipuRealmScope, false);
+                }
+
+                logger.infov("Multi-tenant clients specialized client scopes migration - Done for Multi-tenant client with name {0}!", multiTenantClient.getClientId());
+            }
+
+            logger.infov("Multi-tenant clients specialized client scopes migration - SUCCESS!");
+            sessionB.getTransactionManager().commit();
+        } catch (Exception e) {
+            logger.infov("Multi-tenant clients specialized client scopes migration - Failed! :: {0}", e.getMessage());
+            sessionB.getTransactionManager().rollback();
+            throw e;
+        } finally {
+            sessionB.close();
         }
     }
 
