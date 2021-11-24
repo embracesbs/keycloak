@@ -398,11 +398,11 @@ public class ClientResource {
         }
 
         // if mt-client prevent removal of specialized scopes!
-        // todo: do it only for master realm? or general!
-        if (client.getMultiTenant()
-                && clientScope.getName().startsWith(EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX)) {
-            // do nothing?
-            logger.infov("Preventing deletion of specialized multi-tenant system client scope '%s' as optional client scope of the client '%s'", clientScope.getName(), client.getName());
+        if (realm.getName().equals(Config.getAdminRealm()) &&
+                client.getMultiTenant() &&
+                clientScope.getName().startsWith(EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX)) {
+            // ignore this request
+            logger.infov("Preventing deletion of specialized multi-tenant system client scope {0} as optional client scope of the client {1}", clientScope.getName(), client.getName());
             return;
         }
 
