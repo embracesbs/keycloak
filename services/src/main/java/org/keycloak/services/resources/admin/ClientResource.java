@@ -25,6 +25,7 @@ import org.keycloak.OAuthErrorException;
 import org.keycloak.authorization.admin.AuthorizationService;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.common.util.Time;
+import org.keycloak.constants.EmbraceMultiTenantConstants;
 import org.keycloak.events.Errors;
 import org.keycloak.events.admin.OperationType;
 import org.keycloak.events.admin.ResourceType;
@@ -395,6 +396,16 @@ public class ClientResource {
         if (clientScope == null) {
             throw new javax.ws.rs.NotFoundException("Client scope not found");
         }
+
+        // if mt-client prevent removal of specialized scopes!
+        if (realm.getName().equals(Config.getAdminRealm()) &&
+                client.getMultiTenant() &&
+                clientScope.getName().startsWith(EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX)) {
+            // ignore this request
+            logger.infov("Preventing deletion of specialized multi-tenant system client scope {0} as optional client scope of the client {1}", clientScope.getName(), client.getName());
+            return;
+        }
+
         client.removeClientScope(clientScope);
 
         adminEvent.operation(OperationType.DELETE).resource(ResourceType.CLIENT).resourcePath(session.getContext().getUri()).success();

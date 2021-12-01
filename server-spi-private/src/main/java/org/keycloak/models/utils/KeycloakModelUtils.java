@@ -54,11 +54,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Set of helper methods, which are useful in various model implementations.
@@ -626,6 +622,16 @@ public final class KeycloakModelUtils {
             }
         }
         return null;
+    }
+
+    public static List<ClientScopeModel> findClientScopesByNamePrefix(RealmModel realm, String clientScopeNamePrefix) {
+        List<ClientScopeModel> clientScopesFound = new ArrayList<>();
+        for (ClientScopeModel clientScope : realm.getClientScopes()) {
+            if (clientScope.getName().startsWith(clientScopeNamePrefix)) {
+                clientScopesFound.add(clientScope);
+            }
+        }
+        return clientScopesFound;
     }
 
     /**
