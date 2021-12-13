@@ -26,6 +26,8 @@ import org.keycloak.testsuite.arquillian.migration.MigrationContext;
 
 import org.keycloak.testsuite.util.TextFileChecker;
 import java.util.LinkedList;
+
+import static java.lang.Boolean.parseBoolean;
 import static org.keycloak.testsuite.util.MailServerConfiguration.FROM;
 import static org.keycloak.testsuite.util.MailServerConfiguration.HOST;
 import static org.keycloak.testsuite.util.MailServerConfiguration.PORT;
@@ -40,6 +42,7 @@ public final class SuiteContext {
 
     private List<ContainerInfo> authServerInfo = new LinkedList<>();
     private final List<List<ContainerInfo>> authServerBackendsInfo = new ArrayList<>();
+    private ContainerInfo legacyAuthServerInfo;
 
     private final List<ContainerInfo> cacheServersInfo = new ArrayList<>();
 
@@ -57,7 +60,9 @@ public final class SuiteContext {
      * True if the testsuite is running in the adapter backward compatibility testing mode,
      * i.e. if the tests are running against newer auth server
      */
-    private static final boolean adapterCompatTesting = Boolean.parseBoolean(System.getProperty("testsuite.adapter.compat.testing"));
+    private static final boolean adapterCompatTesting = parseBoolean(System.getProperty("testsuite.adapter.compat.testing"));
+
+    public static final boolean BROWSER_STRICT_COOKIES = parseBoolean(System.getProperty("browser.strict.cookies"));
 
     public SuiteContext(Set<ContainerInfo> arquillianContainers) {
         this.container = arquillianContainers;
@@ -149,6 +154,14 @@ public final class SuiteContext {
         authServerBackendsInfo.get(dcIndex).add(container);
     }
 
+    public ContainerInfo getLegacyAuthServerInfo() {
+        return legacyAuthServerInfo;
+    }
+
+    public void setLegacyAuthServerInfo(ContainerInfo legacyAuthServerInfo) {
+        this.legacyAuthServerInfo = legacyAuthServerInfo;
+    }
+
     public ContainerInfo getMigratedAuthServerInfo() {
         return migratedAuthServerInfo;
     }
@@ -205,6 +218,9 @@ public final class SuiteContext {
               .append("\n");
 
             getAuthServerBackendsInfo().forEach(bInfo -> sb.append("  Backend: ").append(bInfo).append(" - ").append(bInfo.getContextRoot().toExternalForm()).append("\n"));
+            if (parseBoolean(System.getProperty("auth.server.jboss.legacy"))) {
+                sb.append("  Legacy:  ").append(getLegacyAuthServerInfo()).append("           - ").append(getLegacyAuthServerInfo().getContextRoot().toExternalForm()).append("\n");
+            }
         } else {
           sb.append(getAuthServerInfo().getQualifier())
             .append("\n");

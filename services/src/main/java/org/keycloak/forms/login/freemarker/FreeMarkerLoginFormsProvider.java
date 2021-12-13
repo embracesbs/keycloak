@@ -40,6 +40,7 @@ import org.keycloak.forms.login.freemarker.model.SAMLPostFormBean;
 import org.keycloak.forms.login.freemarker.model.TotpBean;
 import org.keycloak.forms.login.freemarker.model.TotpLoginBean;
 import org.keycloak.forms.login.freemarker.model.UrlBean;
+import org.keycloak.forms.login.freemarker.model.VerifyProfileBean;
 import org.keycloak.forms.login.freemarker.model.X509ConfirmBean;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientScopeModel;
@@ -151,13 +152,20 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
                 page = LoginFormsPages.LOGIN_UPDATE_PROFILE;
                 break;
             case UPDATE_PASSWORD:
-                boolean isRequestedByAdmin = user.getRequiredActions().stream().filter(Objects::nonNull).anyMatch(UPDATE_PASSWORD.toString()::contains);
+                boolean isRequestedByAdmin = user.getRequiredActionsStream().filter(Objects::nonNull).anyMatch(UPDATE_PASSWORD.toString()::contains);
                 actionMessage = isRequestedByAdmin ? Messages.UPDATE_PASSWORD : Messages.RESET_PASSWORD;
                 page = LoginFormsPages.LOGIN_UPDATE_PASSWORD;
                 break;
             case VERIFY_EMAIL:
                 actionMessage = Messages.VERIFY_EMAIL;
                 page = LoginFormsPages.LOGIN_VERIFY_EMAIL;
+                break;
+            case VERIFY_PROFILE:
+                UpdateProfileContext verifyProfile = new UserUpdateProfileContext(realm, user);
+                this.attributes.put(UPDATE_PROFILE_CONTEXT_ATTR, verifyProfile);
+
+                actionMessage = Messages.UPDATE_PROFILE;
+                page = LoginFormsPages.VERIFY_PROFILE;
                 break;
             default:
                 return Response.serverError().build();
@@ -182,6 +190,8 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
 
         Locale locale = session.getContext().resolveLocale(user);
         Properties messagesBundle = handleThemeResources(theme, locale);
+        Map<String, String> localizationTexts = realm.getRealmLocalizationTextsByLocale(locale.toLanguageTag());
+        messagesBundle.putAll(localizationTexts);
 
         handleMessages(locale, messagesBundle);
 
@@ -207,9 +217,14 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
                 BrokeredIdentityContext brokerContext = (BrokeredIdentityContext) this.attributes.get(IDENTITY_PROVIDER_BROKER_CONTEXT);
                 String idpAlias = brokerContext.getIdpConfig().getAlias();
                 idpAlias = ObjectUtil.capitalize(idpAlias);
+                String displayName = idpAlias;
+                if (!ObjectUtil.isBlank(brokerContext.getIdpConfig().getDisplayName())) {
+                    displayName = brokerContext.getIdpConfig().getDisplayName();
+                }
 
                 attributes.put("brokerContext", brokerContext);
                 attributes.put("idpAlias", idpAlias);
+                attributes.put("idpDisplayName", displayName);
                 break;
             case LOGIN_TOTP:
                 attributes.put("otpLogin", new TotpLoginBean(session, realm, user, (String) this.attributes.get(OTPFormAuthenticator.SELECTED_OTP_CREDENTIAL_ID)));
@@ -231,6 +246,9 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
             case SAML_POST_FORM:
                 attributes.put("samlPost", new SAMLPostFormBean(formData));
                 break;
+            case VERIFY_PROFILE:
+                attributes.put("profile", new VerifyProfileBean(user, formData, session));
+                break;
         }
 
         return processTemplate(theme, Templates.getTemplate(page), locale);
@@ -248,6 +266,8 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
 
         Locale locale = session.getContext().resolveLocale(user);
         Properties messagesBundle = handleThemeResources(theme, locale);
+        Map<String, String> localizationTexts = realm.getRealmLocalizationTextsByLocale(locale.getCountry());
+        messagesBundle.putAll(localizationTexts);
 
         handleMessages(locale, messagesBundle);
 
@@ -353,6 +373,8 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
 
         Locale locale = session.getContext().resolveLocale(user);
         Properties messagesBundle = handleThemeResources(theme, locale);
+        Map<String, String> localizationTexts = realm.getRealmLocalizationTextsByLocale(locale.getCountry());
+        messagesBundle.putAll(localizationTexts);
         FormMessage msg = new FormMessage(null, message);
         return formatMessage(msg, messagesBundle, locale);
     }
@@ -369,6 +391,8 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
 
         Locale locale = session.getContext().resolveLocale(user);
         Properties messagesBundle = handleThemeResources(theme, locale);
+        Map<String, String> localizationTexts = realm.getRealmLocalizationTextsByLocale(locale.getCountry());
+        messagesBundle.putAll(localizationTexts);
         FormMessage msg = new FormMessage(message, (Object[]) parameters);
         return formatMessage(msg, messagesBundle, locale);
     }
@@ -398,8 +422,8 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
         if (realm != null) {
             attributes.put("realm", new RealmBean(realm));
 
-            List<IdentityProviderModel> identityProviders = realm.getIdentityProviders();
-            identityProviders = LoginFormsUtil.filterIdentityProviders(identityProviders, session, realm, attributes, formData, context);
+            List<IdentityProviderModel> identityProviders = LoginFormsUtil
+                    .filterIdentityProviders(realm.getIdentityProvidersStream(), session, context);
             attributes.put("social", new IdentityProviderBean(realm, session, identityProviders, baseUriWithCodeAndClientId));
 
             attributes.put("url", new UrlBean(realm, theme, baseUri, this.actionUri));
@@ -534,7 +558,12 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
         BrokeredIdentityContext brokerContext = (BrokeredIdentityContext) this.attributes.get(IDENTITY_PROVIDER_BROKER_CONTEXT);
         String idpAlias = brokerContext.getIdpConfig().getAlias();
         idpAlias = ObjectUtil.capitalize(idpAlias);
-        setMessage(MessageType.WARNING, Messages.LINK_IDP, idpAlias);
+        String displayName = idpAlias;
+        if (!ObjectUtil.isBlank(brokerContext.getIdpConfig().getDisplayName())) {
+            displayName = brokerContext.getIdpConfig().getDisplayName();
+        }
+
+        setMessage(MessageType.WARNING, Messages.LINK_IDP, displayName);
 
         return createResponse(LoginFormsPages.LOGIN_IDP_LINK_EMAIL);
     }
@@ -555,9 +584,13 @@ public class FreeMarkerLoginFormsProvider implements LoginFormsProvider {
         return createResponse(LoginFormsPages.OAUTH_GRANT);
     }
 
-    @Override
     public Response createSelectAuthenticator() {
         return createResponse(LoginFormsPages.LOGIN_SELECT_AUTHENTICATOR);
+    }
+
+    @Override
+    public Response createOAuth2DeviceVerifyUserCodePage() {
+        return createResponse(LoginFormsPages.LOGIN_OAUTH2_DEVICE_VERIFY_USER_CODE);
     }
 
     @Override

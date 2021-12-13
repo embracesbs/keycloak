@@ -197,6 +197,7 @@ public class ProvidersTest extends AbstractAuthenticationTest {
                 "Testsuite Dummy authenticator.  Just passes through and is hardcoded to a specific user");
         addProviderInfo(result, "testsuite-dummy-registration", "Testsuite Dummy Pass Thru",
                 "Testsuite Dummy authenticator.  Just passes through and is hardcoded to a specific user");
+        addProviderInfo(result, "set-client-note-authenticator", "Set Client Note Authenticator", "Set client note of specified name with the specified value to the authenticationSession.");
         addProviderInfo(result, "testsuite-username", "Testsuite Username Only",
                 "Testsuite Username authenticator.  Username parameter sets username");
         addProviderInfo(result, "webauthn-authenticator", "WebAuthn Authenticator", "Authenticator for WebAuthn. Usually used for WebAuthn two-factor authentication");
@@ -214,6 +215,13 @@ public class ProvidersTest extends AbstractAuthenticationTest {
                 "Flow is executed only if the user attribute exists and has the expected value");
         addProviderInfo(result, "set-attribute", "Set user attribute",
                 "Set a user attribute");
+        addProviderInfo(result, "idp-detect-existing-broker-user", "Detect existing broker user",
+                "Detect if there is an existing Keycloak account with same email like identity provider. If no, throw an error.");
+
+        addProviderInfo(result, "deny-access-authenticator", "Deny access",
+                "Access will be always denied. Useful for example in the conditional flows to be used after satisfying the previous conditions");
+        addProviderInfo(result, "allow-access-authenticator", "Allow access",
+                "Authenticator will always successfully authenticate. Useful for example in the conditional flows to be used after satisfying the previous conditions");
 
         return result;
     }

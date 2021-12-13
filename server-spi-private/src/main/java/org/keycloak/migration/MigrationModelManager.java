@@ -22,7 +22,39 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 import org.keycloak.common.Version;
-import org.keycloak.migration.migrators.*;
+import org.keycloak.migration.migrators.MigrateTo12_0_0;
+import org.keycloak.migration.migrators.MigrateTo14_0_0;
+import org.keycloak.migration.migrators.MigrateTo1_2_0;
+import org.keycloak.migration.migrators.MigrateTo1_3_0;
+import org.keycloak.migration.migrators.MigrateTo1_4_0;
+import org.keycloak.migration.migrators.MigrateTo1_5_0;
+import org.keycloak.migration.migrators.MigrateTo1_6_0;
+import org.keycloak.migration.migrators.MigrateTo1_7_0;
+import org.keycloak.migration.migrators.MigrateTo1_8_0;
+import org.keycloak.migration.migrators.MigrateTo1_9_0;
+import org.keycloak.migration.migrators.MigrateTo1_9_2;
+import org.keycloak.migration.migrators.MigrateTo2_0_0;
+import org.keycloak.migration.migrators.MigrateTo2_1_0;
+import org.keycloak.migration.migrators.MigrateTo2_2_0;
+import org.keycloak.migration.migrators.MigrateTo2_3_0;
+import org.keycloak.migration.migrators.MigrateTo2_5_0;
+import org.keycloak.migration.migrators.MigrateTo3_0_0;
+import org.keycloak.migration.migrators.MigrateTo3_1_0;
+import org.keycloak.migration.migrators.MigrateTo3_2_0;
+import org.keycloak.migration.migrators.MigrateTo3_4_0;
+import org.keycloak.migration.migrators.MigrateTo3_4_1;
+import org.keycloak.migration.migrators.MigrateTo3_4_2;
+import org.keycloak.migration.migrators.MigrateTo4_0_0;
+import org.keycloak.migration.migrators.MigrateTo4_2_0;
+import org.keycloak.migration.migrators.MigrateTo4_6_0;
+import org.keycloak.migration.migrators.MigrateTo6_0_0;
+import org.keycloak.migration.migrators.MigrateTo8_0_0;
+import org.keycloak.migration.migrators.MigrateTo8_0_2;
+import org.keycloak.migration.migrators.MigrateTo9_0_0;
+import org.keycloak.migration.migrators.MigrateTo9_0_4;
+import org.keycloak.migration.migrators.Migration;
+import org.keycloak.models.Constants;
+import org.keycloak.models.DeploymentStateProvider;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.representations.idm.RealmRepresentation;
@@ -62,11 +94,15 @@ public class MigrationModelManager {
             new MigrateTo8_0_0(),
             new MigrateTo8_0_2(),
             new MigrateTo9_0_0(),
-            new MigrateTo9_0_4()
+            new MigrateTo9_0_4(),
+            new MigrateTo12_0_0(),
+            new MigrateTo14_0_0()
     };
 
     public static void migrate(KeycloakSession session) {
-        MigrationModel model = session.realms().getMigrationModel();
+        session.setAttribute(Constants.STORAGE_BATCH_ENABLED, Boolean.getBoolean("keycloak.migration.batch-enabled"));
+        session.setAttribute(Constants.STORAGE_BATCH_SIZE, Integer.getInteger("keycloak.migration.batch-size"));
+        MigrationModel model = session.getProvider(DeploymentStateProvider.class).getMigrationModel();
 
         ModelVersion currentVersion = new ModelVersion(Version.VERSION_KEYCLOAK);
         ModelVersion latestUpdate = migrations[migrations.length-1].getVersion();
@@ -94,6 +130,7 @@ public class MigrationModelManager {
     public static final ModelVersion RHSSO_VERSION_7_1_KEYCLOAK_VERSION = new ModelVersion("2.5.5");
     public static final ModelVersion RHSSO_VERSION_7_2_KEYCLOAK_VERSION = new ModelVersion("3.4.3");
     public static final ModelVersion RHSSO_VERSION_7_3_KEYCLOAK_VERSION = new ModelVersion("4.8.3");
+    public static final ModelVersion RHSSO_VERSION_7_4_KEYCLOAK_VERSION = new ModelVersion("9.0.3");
 
     private static final Map<Pattern, ModelVersion> PATTERN_MATCHER = new LinkedHashMap<>();
     static {
@@ -101,6 +138,7 @@ public class MigrationModelManager {
         PATTERN_MATCHER.put(Pattern.compile("^7\\.1\\.\\d+\\.GA$"), RHSSO_VERSION_7_1_KEYCLOAK_VERSION);
         PATTERN_MATCHER.put(Pattern.compile("^7\\.2\\.\\d+\\.GA$"), RHSSO_VERSION_7_2_KEYCLOAK_VERSION);
         PATTERN_MATCHER.put(Pattern.compile("^7\\.3\\.\\d+\\.GA$"), RHSSO_VERSION_7_3_KEYCLOAK_VERSION);
+        PATTERN_MATCHER.put(Pattern.compile("^7\\.4\\.\\d+\\.GA$"), RHSSO_VERSION_7_4_KEYCLOAK_VERSION);
     }
 
     public static void migrateImport(KeycloakSession session, RealmModel realm, RealmRepresentation rep, boolean skipUserDependent) {

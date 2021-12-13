@@ -23,6 +23,7 @@ import org.jboss.arquillian.graphene.page.Page;
 import org.junit.After;
 import org.junit.Before;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.common.Profile;
 import org.keycloak.common.util.Retry;
 import org.keycloak.models.utils.TimeBasedOTP;
 import org.keycloak.protocol.saml.SamlProtocol;
@@ -34,6 +35,7 @@ import org.keycloak.testsuite.AbstractKeycloakTest;
 import org.keycloak.testsuite.Assert;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude;
 import org.keycloak.testsuite.arquillian.annotation.AuthServerContainerExclude.AuthServer;
+import org.keycloak.testsuite.arquillian.annotation.DisableFeature;
 import org.keycloak.testsuite.pages.AccountApplicationsPage;
 import org.keycloak.testsuite.pages.AccountFederatedIdentityPage;
 import org.keycloak.testsuite.pages.AccountPasswordPage;
@@ -68,12 +70,15 @@ import static org.keycloak.testsuite.admin.ApiUtil.createUserWithAdminClient;
 import static org.keycloak.testsuite.admin.ApiUtil.resetUserPassword;
 import static org.keycloak.testsuite.broker.BrokerTestConstants.USER_EMAIL;
 import static org.keycloak.testsuite.broker.BrokerTestTools.encodeUrl;
+import static org.keycloak.testsuite.broker.BrokerTestTools.getConsumerRoot;
+import static org.keycloak.testsuite.broker.BrokerTestTools.getProviderRoot;
 import static org.keycloak.testsuite.broker.BrokerTestTools.waitForPage;
 
 /**
  * No test methods there. Just some useful common functionality
  */
 @AuthServerContainerExclude(AuthServer.REMOTE)
+@DisableFeature(value = Profile.Feature.ACCOUNT2, skipRestart = true) // TODO remove this (KEYCLOAK-16228)
 public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
 
     protected static final String ATTRIBUTE_VALUE = "attribute.value";
@@ -164,7 +169,7 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
     }
 
     protected void addClientsToProviderAndConsumer() {
-        List<ClientRepresentation> clients = bc.createProviderClients(suiteContext);
+        List<ClientRepresentation> clients = bc.createProviderClients();
         final RealmResource providerRealm = adminClient.realm(bc.providerRealmName());
         for (ClientRepresentation client : clients) {
             log.debug("adding client " + client.getClientId() + " to realm " + bc.providerRealmName());
@@ -173,7 +178,7 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
             resp.close();
         }
 
-        clients = bc.createConsumerClients(suiteContext);
+        clients = bc.createConsumerClients();
         if (clients != null) {
             RealmResource consumerRealm = adminClient.realm(bc.consumerRealmName());
             for (ClientRepresentation client : clients) {
@@ -217,16 +222,21 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
     }
 
     protected void logInAsUserInIDP() {
-        driver.navigate().to(getAccountUrl(bc.consumerRealmName()));
+        driver.navigate().to(getAccountUrl(getConsumerRoot(), bc.consumerRealmName()));
         logInWithBroker(bc);
     }
 
     protected void logInWithBroker(BrokerConfiguration bc) {
-        log.debug("Clicking social " + bc.getIDPAlias());
-        loginPage.clickSocial(bc.getIDPAlias());
-        waitForPage(driver, "log in to", true);
+        logInWithIdp(bc.getIDPAlias(), bc.getUserLogin(), bc.getUserPassword());
+    }
+
+    protected void logInWithIdp(String idpAlias, String username, String password) {
+        waitForPage(driver, "sign in to", true);
+        log.debug("Clicking social " + idpAlias);
+        loginPage.clickSocial(idpAlias);
+        waitForPage(driver, "sign in to", true);
         log.debug("Logging in");
-        loginPage.login(bc.getUserLogin(), bc.getUserPassword());
+        loginPage.login(username, password);
     }
 
     /** Logs in the IDP and updates account information */
@@ -247,43 +257,45 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
     }
 
 
-    protected String getAccountUrl(String realmName) {
-        return BrokerTestTools.getAuthRoot(suiteContext) + "/auth/realms/" + realmName + "/account";
+    protected String getAccountUrl(String contextRoot, String realmName) {
+        return contextRoot + "/auth/realms/" + realmName + "/account";
     }
 
 
-    protected String getAccountPasswordUrl(String realmName) {
-        return BrokerTestTools.getAuthRoot(suiteContext) + "/auth/realms/" + realmName + "/account/password";
+    protected String getAccountPasswordUrl(String contextRoot, String realmName) {
+        return contextRoot + "/auth/realms/" + realmName + "/account/password";
     }
 
     /**
      * Get the login page for an existing client in provided realm
+     *
+     * @param contextRoot
      * @param realmName Name of the realm
      * @param clientId ClientId of a client. Client has to exists in the realm.
      * @return Login URL
      */
-    protected String getLoginUrl(String realmName, String clientId) {
+    protected String getLoginUrl(String contextRoot, String realmName, String clientId) {
         List<ClientRepresentation> clients = adminClient.realm(realmName).clients().findByClientId(clientId);
 
         assertThat(clients, Matchers.is(Matchers.not(Matchers.empty())));
 
         String redirectURI = clients.get(0).getBaseUrl();
 
-        return BrokerTestTools.getAuthRoot(suiteContext) + "/auth/realms/" + realmName + "/protocol/openid-connect/auth?client_id=" +
+        return contextRoot + "/auth/realms/" + realmName + "/protocol/openid-connect/auth?client_id=" +
                 clientId + "&redirect_uri=" + redirectURI + "&response_type=code&scope=openid";
     }
 
-    protected void logoutFromRealm(String realm) {
-        logoutFromRealm(realm, null);
+    protected void logoutFromRealm(String contextRoot, String realm) {
+        logoutFromRealm(contextRoot, realm, null);
     }
 
-    protected void logoutFromRealm(String realm, String initiatingIdp) { logoutFromRealm(realm, initiatingIdp, null); }
+    protected void logoutFromRealm(String contextRoot, String realm, String initiatingIdp) { logoutFromRealm(contextRoot, realm, initiatingIdp, null); }
 
-    protected void logoutFromRealm(String realm, String initiatingIdp, String tokenHint) {
-        driver.navigate().to(BrokerTestTools.getAuthRoot(suiteContext)
+    protected void logoutFromRealm(String contextRoot, String realm, String initiatingIdp, String tokenHint) {
+        driver.navigate().to(contextRoot
                 + "/auth/realms/" + realm
                 + "/protocol/" + "openid-connect"
-                + "/logout?redirect_uri=" + encodeUrl(getAccountUrl(realm))
+                + "/logout?redirect_uri=" + encodeUrl(getAccountUrl(contextRoot, realm))
                 + (!StringUtils.isBlank(initiatingIdp) ? "&initiating_idp=" + initiatingIdp : "")
                 + (!StringUtils.isBlank(tokenHint) ? "&id_token_hint=" + tokenHint : "")
         );
@@ -291,7 +303,7 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
         try {
             Retry.execute(() -> {
                 try {
-                    waitForPage(driver, "log in to " + realm, true);
+                    waitForPage(driver, "sign in to " + realm, true);
                 } catch (TimeoutException ex) {
                     driver.navigate().refresh();
                     log.debug("[Retriable] Timed out waiting for login page");
@@ -307,18 +319,20 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
 
 
     protected void assertLoggedInAccountManagement() {
+        assertLoggedInAccountManagement(bc.getUserLogin(), bc.getUserEmail());
+    }
+
+    protected void assertLoggedInAccountManagement(String username, String email) {
         waitForAccountManagementTitle();
         Assert.assertTrue(accountUpdateProfilePage.isCurrent());
-        Assert.assertEquals(accountUpdateProfilePage.getUsername(), bc.getUserLogin());
-        Assert.assertEquals(accountUpdateProfilePage.getEmail(), bc.getUserEmail());
+        Assert.assertEquals(accountUpdateProfilePage.getUsername(), username);
+        Assert.assertEquals(accountUpdateProfilePage.getEmail(), email);
     }
 
     protected void waitForAccountManagementTitle() {
-        boolean isProduct = adminClient.serverInfo().getInfo().getProfileInfo().getName().equals("product");
-        String title = isProduct ? "rh-sso account management" : "keycloak account management";
+        final String title = getProjectName().toLowerCase() + " account management";
         waitForPage(driver, title, true);
     }
-
 
     protected void assertErrorPage(String expectedError) {
         errorPage.assertCurrent();
@@ -326,11 +340,17 @@ public abstract class AbstractBaseBrokerTest extends AbstractKeycloakTest {
     }
 
 
-    protected URI getAuthServerSamlEndpoint(String realm) throws IllegalArgumentException, UriBuilderException {
-        return RealmsResource
-                .protocolUrl(UriBuilder.fromUri(getAuthServerRoot()))
-                .build(realm, SamlProtocol.LOGIN_PROTOCOL);
+    protected URI getConsumerSamlEndpoint(String realm) throws IllegalArgumentException, UriBuilderException {
+        return getSamlEndpoint(getConsumerRoot(), realm);
     }
 
+    protected URI getProviderSamlEndpoint(String realm) throws IllegalArgumentException, UriBuilderException {
+        return getSamlEndpoint(getProviderRoot(), realm);
+    }
 
+    protected URI getSamlEndpoint(String fromUri, String realm) {
+        return RealmsResource
+                .protocolUrl(UriBuilder.fromUri(fromUri).path("auth"))
+                .build(realm, SamlProtocol.LOGIN_PROTOCOL);
+    }
 }

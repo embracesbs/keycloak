@@ -20,21 +20,22 @@ package org.keycloak.testsuite.federation.ldap;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeMessage;
 
-import org.hamcrest.Matchers;
 import org.jboss.arquillian.graphene.page.Page;
 import org.junit.ClassRule;
 import org.junit.FixMethodOrder;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runners.MethodSorters;
-import org.keycloak.component.ComponentModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.LDAPConstants;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserModel;
+import org.keycloak.models.UserProvider;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.storage.UserStorageProviderModel;
 import org.keycloak.storage.ldap.LDAPStorageProvider;
@@ -52,7 +53,13 @@ import org.keycloak.testsuite.util.LDAPRule;
 import org.keycloak.testsuite.util.LDAPTestUtils;
 import org.keycloak.testsuite.util.MailUtils;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assume.assumeThat;
 
 /**
  * Test for the scenarios with disabled cache for LDAP provider. This involves scenarios when something is changed directly in LDAP server
@@ -82,11 +89,9 @@ public class LDAPNoCacheTest extends AbstractLDAPTest {
             appRealm.updateComponent(ctx.getLdapModel());
 
             // Switch mappers to "Always read value from LDAP". Changed attributes in LDAP should be immediately visible on Keycloak side
-            List<ComponentModel> ldapMappers = appRealm.getComponents(ctx.getLdapModel().getId());
-            ldapMappers.stream()
+            appRealm.getComponentsStream(ctx.getLdapModel().getId())
                     .filter(mapper -> UserAttributeLDAPStorageMapperFactory.PROVIDER_ID.equals(mapper.getProviderId()))
                     .forEach(mapper -> {
-
                         mapper.put(UserAttributeLDAPStorageMapper.ALWAYS_READ_VALUE_FROM_LDAP, true);
                         appRealm.updateComponent(mapper);
 
@@ -146,7 +151,6 @@ public class LDAPNoCacheTest extends AbstractLDAPTest {
             changeEmailAddressInLDAP(testingClient, "john_old@email.org");
         }
     }
-
 
     @Test
     public void resetPasswordLinkCheckOldAddressLast() throws IOException, MessagingException {
@@ -208,6 +212,38 @@ public class LDAPNoCacheTest extends AbstractLDAPTest {
             ldapUser.setSingleAttribute(LDAPConstants.EMAIL, newEmail);
             ctx.getLdapProvider().getLdapIdentityStore().update(ldapUser);
 
+        });
+    }
+
+    // KEYCLOAK-13817
+    @Test
+    public void lookupByAttributeAfterImportWithAttributeValueAlwaysReadFromLdapMustSucceed() {
+        testingClient.server().run(session -> {
+            LDAPTestContext ctx = LDAPTestContext.init(session);
+            RealmModel realm = ctx.getRealm();
+            ctx.getLdapModel().setImportEnabled(true);
+            realm.updateComponent(ctx.getLdapModel());
+
+            UserProvider localStorage = session.userLocalStorage();
+            LDAPStorageProvider ldapProvider = ctx.getLdapProvider();
+
+            // assume no user imported
+            UserModel user = localStorage.getUserByUsername(realm, "johnkeycloak");
+            assumeThat(user, is(nullValue()));
+
+            // trigger import
+            List<UserModel> byEmail = ldapProvider.searchForUserByUserAttributeStream(realm, "email", "john_old@email.org")
+                    .collect(Collectors.toList());
+            assumeThat(byEmail, hasSize(1));
+
+            // assume that user has been imported
+            user = localStorage.getUserByUsername(realm, "johnkeycloak");
+            assumeThat(user, is(not(nullValue())));
+
+            // search a second time
+            byEmail = ldapProvider.searchForUserByUserAttributeStream(realm, "email", "john_old@email.org")
+                    .collect(Collectors.toList());
+            assertThat(byEmail, hasSize(1));
         });
     }
 

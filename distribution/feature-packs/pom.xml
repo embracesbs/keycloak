@@ -20,7 +20,7 @@
     <parent>
         <artifactId>keycloak-distribution-parent</artifactId>
         <groupId>org.keycloak</groupId>
-        <version>10.0.2</version>
+        <version>14.0.0</version>
     </parent>
 
     <name>Feature Pack Builds</name>
@@ -32,6 +32,7 @@
 
     <modules>
         <module>adapter-feature-pack</module>
+        <module>server-feature-pack-dependencies</module>
         <module>server-feature-pack</module>
     </modules>
 </project>

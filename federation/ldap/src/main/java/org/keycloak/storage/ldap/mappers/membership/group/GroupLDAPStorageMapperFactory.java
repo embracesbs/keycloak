@@ -17,11 +17,13 @@
 
 package org.keycloak.storage.ldap.mappers.membership.group;
 
+import org.keycloak.common.util.ObjectUtil;
 import org.keycloak.component.ComponentModel;
 import org.keycloak.component.ComponentValidationException;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.LDAPConstants;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.provider.ProviderConfigurationBuilder;
 import org.keycloak.storage.UserStorageProvider;
@@ -207,6 +209,15 @@ public class GroupLDAPStorageMapperFactory extends AbstractLDAPStorageMapperFact
                 .helpText("If this flag is true, then during sync of groups from LDAP to Keycloak, we will keep just those Keycloak groups, which still exists in LDAP. Rest will be deleted")
                 .type(ProviderConfigProperty.BOOLEAN_TYPE)
                 .defaultValue("false")
+                .add()
+                .property().name(GroupMapperConfig.LDAP_GROUPS_PATH)
+                .label("Groups Path")
+                .helpText("Keycloak group path the LDAP groups are added to. For example if value '/Applications/App1' is used, "
+                		+ "then LDAP groups will be available in Keycloak under group 'App1', which is child of top level group 'Applications'. "
+                		+ "The default value is '/' so LDAP groups will be mapped to the Keycloak groups at the top level. "
+                		+ "The configured group path must already exists in the Keycloak when creating this mapper.")
+                .type(ProviderConfigProperty.STRING_TYPE)
+                .defaultValue("/")
                 .add();
         return config.build();
     }
@@ -254,6 +265,7 @@ public class GroupLDAPStorageMapperFactory extends AbstractLDAPStorageMapperFact
         ComponentModel parentModel = realm.getComponent(model.getParentId());
         UserStorageProviderModel parent = new UserStorageProviderModel(parentModel);
         onParentUpdate(realm, parent, parent, model);
+        setDefaultGroupsPath(realm, model);
 
     }
 
@@ -262,6 +274,14 @@ public class GroupLDAPStorageMapperFactory extends AbstractLDAPStorageMapperFact
         ComponentModel parentModel = realm.getComponent(newModel.getParentId());
         UserStorageProviderModel parent = new UserStorageProviderModel(parentModel);
         onParentUpdate(realm, parent, parent, newModel);
+        setDefaultGroupsPath(realm, newModel);
+    }
+
+    private void setDefaultGroupsPath(RealmModel realm, ComponentModel mapperModel) {
+        if (ObjectUtil.isBlank(mapperModel.getConfig().getFirst(GroupMapperConfig.LDAP_GROUPS_PATH))) {
+            mapperModel.getConfig().putSingle(GroupMapperConfig.LDAP_GROUPS_PATH, GroupMapperConfig.DEFAULT_LDAP_GROUPS_PATH);
+            realm.updateComponent(mapperModel);
+        }
     }
 
     @Override
@@ -282,6 +302,11 @@ public class GroupLDAPStorageMapperFactory extends AbstractLDAPStorageMapperFact
         }
 
         LDAPUtils.validateCustomLdapFilter(config.getConfig().getFirst(GroupMapperConfig.GROUPS_LDAP_FILTER));
+
+        String group = new GroupMapperConfig(config).getGroupsPath();
+        if (!GroupMapperConfig.DEFAULT_LDAP_GROUPS_PATH.equals(group) && KeycloakModelUtils.findGroupByPath(realm, group) == null) {
+            throw new ComponentValidationException("ldapErrorMissingGroupsPathGroup");
+        }
     }
 
     @Override

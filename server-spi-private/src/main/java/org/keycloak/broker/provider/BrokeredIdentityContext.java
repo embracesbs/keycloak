@@ -22,8 +22,10 @@ import org.keycloak.sessions.AuthenticationSessionModel;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * <p>Represents all identity information obtained from an {@link org.keycloak.broker.provider.IdentityProvider} after a
@@ -34,6 +36,7 @@ import java.util.Map;
 public class BrokeredIdentityContext {
 
     private String id;
+    private String legacyId;
     private String username;
     private String modelUsername;
     private String email;
@@ -41,7 +44,6 @@ public class BrokeredIdentityContext {
     private String lastName;
     private String brokerSessionId;
     private String brokerUserId;
-    private String code;
     private String token;
     private IdentityProviderModel idpConfig;
     private IdentityProvider idp;
@@ -62,6 +64,19 @@ public class BrokeredIdentityContext {
 
     public void setId(String id) {
         this.id = id;
+    }
+
+    /**
+     * ID from older API version. For API migrations.
+     *
+     * @return legacy ID
+     */
+    public String getLegacyId() {
+        return legacyId;
+    }
+
+    public void setLegacyId(String legacyId) {
+        this.legacyId = legacyId;
     }
 
     /**
@@ -120,14 +135,6 @@ public class BrokeredIdentityContext {
 
     public void setToken(String token) {
         this.token = token;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public void setCode(String code) {
-        this.code = code;
     }
 
     public IdentityProviderModel getIdpConfig() {
@@ -203,6 +210,44 @@ public class BrokeredIdentityContext {
         this.authenticationSession = authenticationSession;
     }
 
+    /**
+     * Obtains the set of roles that were granted by mappers.
+     *
+     * @return a {@link Set} containing the roles.
+     */
+    private Set<String> getMapperGrantedRoles() {
+        Set<String> roles = (Set<String>) this.contextData.get(Constants.MAPPER_GRANTED_ROLES);
+        if (roles == null) {
+            roles = new HashSet<>();
+            this.contextData.put(Constants.MAPPER_GRANTED_ROLES, roles);
+        }
+        return roles;
+    }
+
+    /**
+     * Verifies if a mapper has already granted the specified role.
+     *
+     * @param roleName the name of the role.
+     * @return {@code true} if a mapper has already granted the role; {@code false} otherwise.
+     */
+    public boolean hasMapperGrantedRole(final String roleName) {
+        return this.getMapperGrantedRoles().contains(roleName);
+    }
+
+    /**
+     * Adds the specified role to the set of roles granted by mappers.
+     *
+     * @param roleName the name of the role.
+     */
+    public void addMapperGrantedRole(final String roleName) {
+        this.getMapperGrantedRoles().add(roleName);
+    }
+
+    /**
+     * @deprecated use {@link #setFirstName(String)} and {@link #setLastName(String)} instead
+     * @param name
+     */
+    @Deprecated
     public void setName(String name) {
         if (name != null) {
             int i = name.lastIndexOf(' ');

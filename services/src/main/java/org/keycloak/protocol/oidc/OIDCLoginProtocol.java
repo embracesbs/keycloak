@@ -16,10 +16,15 @@
  */
 package org.keycloak.protocol.oidc;
 
+import static org.keycloak.protocol.oidc.grants.device.DeviceGrantType.approveOAuth2DeviceAuthorization;
+import static org.keycloak.protocol.oidc.grants.device.DeviceGrantType.denyOAuth2DeviceAuthorization;
+import static org.keycloak.protocol.oidc.grants.device.DeviceGrantType.isOAuth2DeviceVerificationFlow;
+
 import org.jboss.logging.Logger;
 import org.keycloak.OAuth2Constants;
 import org.keycloak.OAuthErrorException;
 import org.keycloak.TokenIdGenerator;
+import org.keycloak.authentication.RequiredActionProvider;
 import org.keycloak.common.util.Time;
 import org.keycloak.connections.httpclient.HttpClientProvider;
 import org.keycloak.constants.AdapterConstants;
@@ -28,7 +33,6 @@ import org.keycloak.events.EventBuilder;
 import org.keycloak.events.EventType;
 import org.keycloak.headers.SecurityHeadersProvider;
 import org.keycloak.models.AuthenticatedClientSessionModel;
-import org.keycloak.models.BrowserSecurityHeaders;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.ClientSessionContext;
 import org.keycloak.models.Constants;
@@ -36,6 +40,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.protocol.LoginProtocol;
+import org.keycloak.protocol.oidc.grants.device.DeviceGrantType;
 import org.keycloak.protocol.oidc.utils.OIDCRedirectUriBuilder;
 import org.keycloak.protocol.oidc.utils.OIDCResponseMode;
 import org.keycloak.protocol.oidc.utils.OIDCResponseType;
@@ -49,10 +54,10 @@ import org.keycloak.protocol.oidc.utils.OAuth2CodeParser;
 import org.keycloak.services.managers.ResourceAdminManager;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.util.TokenUtil;
-import org.keycloak.utils.MediaType;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.ws.rs.core.HttpHeaders;
@@ -84,6 +89,7 @@ public class OIDCLoginProtocol implements LoginProtocol {
     public static final String UI_LOCALES_PARAM = OAuth2Constants.UI_LOCALES_PARAM;
     public static final String CLAIMS_PARAM = "claims";
     public static final String ACR_PARAM = "acr_values";
+    public static final String ID_TOKEN_HINT = "id_token_hint";
 
     public static final String LOGOUT_REDIRECT_URI = "OIDC_LOGOUT_REDIRECT_URI";
     public static final String ISSUER = "iss";
@@ -185,7 +191,11 @@ public class OIDCLoginProtocol implements LoginProtocol {
 
     @Override
     public Response authenticated(AuthenticationSessionModel authSession, UserSessionModel userSession, ClientSessionContext clientSessionCtx) {
-        AuthenticatedClientSessionModel clientSession= clientSessionCtx.getClientSession();
+        AuthenticatedClientSessionModel clientSession = clientSessionCtx.getClientSession();
+
+        if (isOAuth2DeviceVerificationFlow(authSession)) {
+            return approveOAuth2DeviceAuthorization(authSession, clientSession, session);
+        }
 
         String responseTypeParam = authSession.getClientNote(OIDCLoginProtocol.RESPONSE_TYPE_PARAM);
         String responseModeParam = authSession.getClientNote(OIDCLoginProtocol.RESPONSE_MODE_PARAM);
@@ -234,7 +244,7 @@ public class OIDCLoginProtocol implements LoginProtocol {
 
             if (responseType.hasResponseType(OIDCResponseType.ID_TOKEN)) {
 
-                responseBuilder.generateIDToken();
+                responseBuilder.generateIDToken(isIdTokenAsDetachedSignature(clientSession.getClient()));
 
                 if (responseType.hasResponseType(OIDCResponseType.TOKEN)) {
                     responseBuilder.generateAccessTokenHash();
@@ -258,19 +268,26 @@ public class OIDCLoginProtocol implements LoginProtocol {
 
             if (responseType.hasResponseType(OIDCResponseType.TOKEN)) {
                 redirectUri.addParam(OAuth2Constants.ACCESS_TOKEN, res.getToken());
-                if (responseType.isImplicitFlow()) {
-                    redirectUri.addParam("token_type", res.getTokenType());
-                    redirectUri.addParam("expires_in", String.valueOf(res.getExpiresIn()));
-                }
+                redirectUri.addParam(OAuth2Constants.TOKEN_TYPE, res.getTokenType());
+                redirectUri.addParam(OAuth2Constants.EXPIRES_IN, String.valueOf(res.getExpiresIn()));
             }
         }
 
         return redirectUri.build();
     }
 
+    // For FAPI 1.0 Advanced
+    private boolean isIdTokenAsDetachedSignature(ClientModel client) {
+        if (client == null) return false;
+        return Boolean.valueOf(Optional.ofNullable(client.getAttribute(OIDCConfigAttributes.ID_TOKEN_AS_DETACHED_SIGNATURE)).orElse(Boolean.FALSE.toString())).booleanValue();
+    }
 
     @Override
     public Response sendError(AuthenticationSessionModel authSession, Error error) {
+        if (isOAuth2DeviceVerificationFlow(authSession)) {
+            return denyOAuth2DeviceAuthorization(authSession, error, session);
+        }
+
         String responseTypeParam = authSession.getClientNote(OIDCLoginProtocol.RESPONSE_TYPE_PARAM);
         String responseModeParam = authSession.getClientNote(OIDCLoginProtocol.RESPONSE_MODE_PARAM);
         setupResponseTypeAndMode(responseTypeParam, responseModeParam);
@@ -278,7 +295,7 @@ public class OIDCLoginProtocol implements LoginProtocol {
         String redirect = authSession.getRedirectUri();
         String state = authSession.getClientNote(OIDCLoginProtocol.STATE_PARAM);
         OIDCRedirectUriBuilder redirectUri = OIDCRedirectUriBuilder.fromUri(redirect, responseMode);
-        
+
         if (error != Error.CANCELLED_AIA_SILENT) {
             redirectUri.addParam(OAuth2Constants.ERROR, translateError(error));
         }
@@ -297,7 +314,6 @@ public class OIDCLoginProtocol implements LoginProtocol {
         switch (error) {
             case CANCELLED_BY_USER:
             case CANCELLED_AIA:
-                return OAuthErrorException.INTERACTION_REQUIRED;
             case CONSENT_DENIED:
                 return OAuthErrorException.ACCESS_DENIED;
             case PASSIVE_INTERACTION_REQUIRED:
@@ -311,9 +327,13 @@ public class OIDCLoginProtocol implements LoginProtocol {
     }
 
     @Override
-    public void backchannelLogout(UserSessionModel userSession, AuthenticatedClientSessionModel clientSession) {
+    public Response backchannelLogout(UserSessionModel userSession, AuthenticatedClientSessionModel clientSession) {
         ClientModel client = clientSession.getClient();
-        new ResourceAdminManager(session).logoutClientSession(realm, client, clientSession);
+        if (OIDCAdvancedConfigWrapper.fromClientModel(clientSession.getClient()).getBackchannelLogoutUrl() != null) {
+            return new ResourceAdminManager(session).logoutClientSessionWithBackchannelLogoutUrl(client, clientSession);
+        } else {
+            return new ResourceAdminManager(session).logoutClientSession(realm, client, clientSession);
+        }
     }
 
     @Override
@@ -376,9 +396,11 @@ public class OIDCLoginProtocol implements LoginProtocol {
 
     protected boolean isReAuthRequiredForKcAction(UserSessionModel userSession, AuthenticationSessionModel authSession) {
         if (authSession.getClientNote(Constants.KC_ACTION) != null) {
+            String providerId = authSession.getClientNote(Constants.KC_ACTION);
+            RequiredActionProvider requiredActionProvider = this.session.getProvider(RequiredActionProvider.class, providerId);
             String authTime = userSession.getNote(AuthenticationManager.AUTH_TIME);
             int authTimeInt = authTime == null ? 0 : Integer.parseInt(authTime);
-            int maxAgeInt = Constants.KC_ACTION_MAX_AGE;
+            int maxAgeInt = requiredActionProvider.getMaxAuthAge();
             return authTimeInt + maxAgeInt < Time.currentTime();
         } else {
             return false;

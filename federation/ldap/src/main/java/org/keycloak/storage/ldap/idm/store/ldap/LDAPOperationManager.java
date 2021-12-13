@@ -25,7 +25,9 @@ import org.keycloak.models.ModelException;
 import org.keycloak.storage.ldap.LDAPConfig;
 import org.keycloak.storage.ldap.idm.model.LDAPDn;
 import org.keycloak.storage.ldap.idm.query.internal.LDAPQuery;
+import org.keycloak.storage.ldap.idm.store.ldap.extended.PasswordModifyRequest;
 import org.keycloak.storage.ldap.mappers.LDAPOperationDecorator;
+import org.keycloak.truststore.TruststoreProvider;
 
 import javax.naming.AuthenticationException;
 import javax.naming.Binding;
@@ -46,6 +48,8 @@ import javax.naming.ldap.LdapName;
 import javax.naming.ldap.PagedResultsControl;
 import javax.naming.ldap.PagedResultsResponseControl;
 import javax.naming.ldap.StartTlsResponse;
+import javax.net.ssl.SSLSocketFactory;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -510,7 +514,14 @@ public class LDAPOperationManager {
 
             authCtx = new InitialLdapContext(env, null);
             if (config.isStartTls()) {
-                tlsResponse = LDAPContextManager.startTLS(authCtx, "simple", dn, password.toCharArray());
+                SSLSocketFactory sslSocketFactory = null;
+                String useTruststoreSpi = config.getUseTruststoreSpi();
+                if (useTruststoreSpi != null && useTruststoreSpi.equals(LDAPConstants.USE_TRUSTSTORE_ALWAYS)) {
+                    TruststoreProvider provider = session.getProvider(TruststoreProvider.class);
+                    sslSocketFactory = provider.getSSLSocketFactory();
+                }
+
+                tlsResponse = LDAPContextManager.startTLS(authCtx, "simple", dn, password.toCharArray(), sslSocketFactory);
 
                 // Exception should be already thrown by LDAPContextManager.startTLS if "startTLS" could not be established, but rather do some additional check
                 if (tlsResponse == null) {
@@ -667,6 +678,25 @@ public class LDAPOperationManager {
             }
         }
         return entryUUID.toString();
+    }
+
+    /**
+     * Execute the LDAP Password Modify Extended Operation to update the password for the given DN.
+     *
+     * @param dn distinguished name of the entry.
+     * @param password the new password.
+     * @param decorator A decorator to apply to the ldap operation.
+     */
+
+    public void passwordModifyExtended(String dn, String password, LDAPOperationDecorator decorator) {
+        try {
+            execute(context -> {
+                PasswordModifyRequest modifyRequest = new PasswordModifyRequest(dn, null, password);
+                return context.extendedOperation(modifyRequest);
+            }, decorator);
+        } catch (NamingException e) {
+            throw new ModelException("Could not execute the password modify extended operation for DN [" + dn + "]", e);
+        }
     }
 
     private <R> R execute(LdapOperation<R> operation) throws NamingException {

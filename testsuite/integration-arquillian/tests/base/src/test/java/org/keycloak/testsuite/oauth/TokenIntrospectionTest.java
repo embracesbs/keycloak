@@ -19,6 +19,14 @@ package org.keycloak.testsuite.oauth;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
+
+import org.apache.commons.io.output.ByteArrayOutputStream;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.message.BasicNameValuePair;
 import org.junit.Rule;
 import org.junit.Test;
 import org.keycloak.OAuth2Constants;
@@ -45,10 +53,14 @@ import org.keycloak.testsuite.util.KeycloakModelUtils;
 import org.keycloak.testsuite.util.OAuthClient;
 import org.keycloak.testsuite.util.OAuthClient.AccessTokenResponse;
 import org.keycloak.testsuite.util.TokenSignatureUtil;
+import org.keycloak.util.BasicAuthHelper;
 import org.keycloak.util.JsonSerialization;
 
 import javax.ws.rs.core.UriBuilder;
+
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -442,5 +454,129 @@ public class TokenIntrospectionTest extends AbstractTestRealmKeycloakTest {
         loginPage.assertCurrent();
 
         return tokenResponse;
+    }
+
+    // KEYCLOAK-17259
+    @Test
+    public void testIntrospectionRequestParamsMoreThanOnce() throws Exception {
+        oauth.doLogin("test-user@localhost", "password");
+        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+        AccessTokenResponse accessTokenResponse = oauth.doAccessTokenRequest(code, "password");
+
+        accessTokenResponse = oauth.doRefreshTokenRequest(accessTokenResponse.getRefreshToken(), "password");
+        String tokenResponse = introspectAccessTokenWithDuplicateParams("confidential-cli", "secret1", accessTokenResponse.getAccessToken());
+
+        OAuth2ErrorRepresentation errorRep = JsonSerialization.readValue(tokenResponse, OAuth2ErrorRepresentation.class);
+        assertEquals("duplicated parameter", errorRep.getErrorDescription());
+        assertEquals(OAuthErrorException.INVALID_REQUEST, errorRep.getError());
+    }
+
+    @Test
+    public void testIntrospectRevokeRefreshToken() throws Exception {
+        RealmRepresentation realm = adminClient.realm(oauth.getRealm()).toRepresentation();
+        realm.setRevokeRefreshToken(true);
+        adminClient.realm(oauth.getRealm()).update(realm);
+        try {
+            JsonNode jsonNode = introspectRevokedToken();
+            assertFalse(jsonNode.get("active").asBoolean());
+        } finally {
+            realm.setRevokeRefreshToken(false);
+            adminClient.realm(oauth.getRealm()).update(realm);
+        }
+    }
+
+    @Test
+    public void testIntrospectRevokeOfflineToken() throws Exception {
+        RealmRepresentation realm = adminClient.realm(oauth.getRealm()).toRepresentation();
+        realm.setRevokeRefreshToken(true);
+        adminClient.realm(oauth.getRealm()).update(realm);
+        try {
+            oauth.scope(OAuth2Constants.OFFLINE_ACCESS);
+            JsonNode jsonNode = introspectRevokedToken();
+            assertFalse(jsonNode.get("active").asBoolean());
+        } finally {
+            realm.setRevokeRefreshToken(false);
+            adminClient.realm(oauth.getRealm()).update(realm);
+        }
+    }
+
+    @Test
+    public void testIntrospectRefreshTokenAfterRefreshTokenRequest() throws Exception {
+        RealmRepresentation realm = adminClient.realm(oauth.getRealm()).toRepresentation();
+        realm.setRevokeRefreshToken(true);
+        realm.setRefreshTokenMaxReuse(1);
+        adminClient.realm(oauth.getRealm()).update(realm);
+        try {
+            oauth.doLogin("test-user@localhost", "password");
+            String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+            AccessTokenResponse accessTokenResponse = oauth.doAccessTokenRequest(code, "password");
+            String oldRefreshToken = accessTokenResponse.getRefreshToken();
+
+            setTimeOffset(1);
+
+            accessTokenResponse = oauth.doRefreshTokenRequest(oldRefreshToken, "password");
+
+            accessTokenResponse = oauth.doRefreshTokenRequest(oldRefreshToken, "password");
+            String newRefreshToken = accessTokenResponse.getRefreshToken();
+            String tokenResponse = oauth.introspectRefreshTokenWithClientCredential("confidential-cli", "secret1",
+                newRefreshToken);
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode jsonNode = objectMapper.readTree(tokenResponse);
+            assertTrue(jsonNode.get("active").asBoolean());
+
+            accessTokenResponse = oauth.doRefreshTokenRequest(newRefreshToken, "password");
+            tokenResponse = oauth.introspectRefreshTokenWithClientCredential("confidential-cli", "secret1", oldRefreshToken);
+            jsonNode = objectMapper.readTree(tokenResponse);
+            assertFalse(jsonNode.get("active").asBoolean());
+        } finally {
+            realm.setRevokeRefreshToken(false);
+            realm.setRefreshTokenMaxReuse(0);
+            adminClient.realm(oauth.getRealm()).update(realm);
+        }
+    }
+
+    private String introspectAccessTokenWithDuplicateParams(String clientId, String clientSecret, String tokenToIntrospect) {
+        HttpPost post = new HttpPost(oauth.getTokenIntrospectionUrl());
+
+        String authorization = BasicAuthHelper.createHeader(clientId, clientSecret);
+        post.setHeader("Authorization", authorization);
+
+        List<NameValuePair> parameters = new LinkedList<>();
+
+        parameters.add(new BasicNameValuePair("token", tokenToIntrospect));
+        parameters.add(new BasicNameValuePair("token", "foo"));
+        parameters.add(new BasicNameValuePair("token_type_hint", "access_token"));
+
+        UrlEncodedFormEntity formEntity;
+
+        try {
+            formEntity = new UrlEncodedFormEntity(parameters, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
+
+        post.setEntity(formEntity);
+
+        try (CloseableHttpResponse response = HttpClientBuilder.create().build().execute(post)) {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            response.getEntity().writeTo(out);
+            return new String(out.toByteArray());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to retrieve access token", e);
+        }
+    }
+
+    private JsonNode introspectRevokedToken() throws Exception {
+        oauth.doLogin("test-user@localhost", "password");
+        String code = oauth.getCurrentQuery().get(OAuth2Constants.CODE);
+        AccessTokenResponse accessTokenResponse = oauth.doAccessTokenRequest(code, "password");
+        String stringRefreshToken = accessTokenResponse.getRefreshToken();
+
+        accessTokenResponse = oauth.doRefreshTokenRequest(stringRefreshToken, "password");
+
+        String tokenResponse = oauth.introspectRefreshTokenWithClientCredential("confidential-cli", "secret1",
+            stringRefreshToken);
+        ObjectMapper objectMapper = new ObjectMapper();
+        return objectMapper.readTree(tokenResponse);
     }
 }

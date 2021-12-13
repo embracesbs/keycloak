@@ -3,14 +3,12 @@ package org.keycloak.testsuite.broker;
 import org.junit.Before;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.admin.client.resource.UsersResource;
-import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.IdentityProviderRepresentation;
 import org.keycloak.representations.idm.MappingsRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.keycloak.testsuite.util.UserBuilder;
 
-import javax.ws.rs.core.Response;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +37,16 @@ public abstract class AbstractIdentityProviderMapperTest extends AbstractBaseBro
     protected IdentityProviderRepresentation setupIdentityProvider() {
         log.debug("adding identity provider to realm " + bc.consumerRealmName());
 
-        final IdentityProviderRepresentation idp = bc.setUpIdentityProvider(suiteContext);
+        final IdentityProviderRepresentation idp = bc.setUpIdentityProvider();
+        realm.identityProviders().create(idp).close();
+        return idp;
+    }
+
+    protected IdentityProviderRepresentation setupIdentityProviderDisableUserInfo() {
+        log.debug("adding identity provider to realm " + bc.consumerRealmName());
+
+        final IdentityProviderRepresentation idp = bc.setUpIdentityProvider();
+        idp.getConfig().put("disableUserInfo", "true");
         realm.identityProviders().create(idp).close();
         return idp;
     }
@@ -74,9 +81,11 @@ public abstract class AbstractIdentityProviderMapperTest extends AbstractBaseBro
         user.setRealmRoles(realmRoles);
 
         Map<String, List<String>> clientRoles = new HashMap<>();
-        roles.getClientMappings().forEach((key, value) -> clientRoles.put(key, value.getMappings().stream()
+        if (roles.getClientMappings() != null) {
+            roles.getClientMappings().forEach((key, value) -> clientRoles.put(key, value.getMappings().stream()
                 .map(RoleRepresentation::getName)
                 .collect(Collectors.toList())));
+        }
         user.setClientRoles(clientRoles);
 
         return user;

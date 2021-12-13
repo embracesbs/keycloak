@@ -34,8 +34,8 @@ import javax.persistence.NamedQuery;
 import javax.persistence.OneToMany;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
-import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedList;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -100,17 +100,22 @@ public class UserEntity {
     @OneToMany(cascade = CascadeType.REMOVE, orphanRemoval = true, mappedBy="user")
     @Fetch(FetchMode.SELECT)
     @BatchSize(size = 20)
-    protected Collection<UserAttributeEntity> attributes = new ArrayList<UserAttributeEntity>();
+    protected Collection<UserAttributeEntity> attributes;
 
     @OneToMany(cascade = CascadeType.REMOVE, orphanRemoval = true, mappedBy="user")
     @Fetch(FetchMode.SELECT)
     @BatchSize(size = 20)
-    protected Collection<UserRequiredActionEntity> requiredActions = new ArrayList<UserRequiredActionEntity>();
+    protected Collection<UserRequiredActionEntity> requiredActions;
 
     @OneToMany(cascade = CascadeType.REMOVE, orphanRemoval = true, mappedBy="user")
     @Fetch(FetchMode.SELECT)
     @BatchSize(size = 20)
-    protected Collection<CredentialEntity> credentials = new ArrayList<CredentialEntity>();
+    protected Collection<CredentialEntity> credentials;
+
+    @OneToMany(cascade = CascadeType.REMOVE, orphanRemoval = true, mappedBy="user")
+    @Fetch(FetchMode.SELECT)
+    @BatchSize(size = 20)
+    protected Collection<FederatedIdentityEntity> federatedIdentities;
 
     @Column(name="FEDERATION_LINK")
     protected String federationLink;
@@ -195,6 +200,9 @@ public class UserEntity {
     }
 
     public Collection<UserAttributeEntity> getAttributes() {
+        if (attributes == null) {
+            attributes = new LinkedList<>();
+        }
         return attributes;
     }
 
@@ -203,6 +211,9 @@ public class UserEntity {
     }
 
     public Collection<UserRequiredActionEntity> getRequiredActions() {
+        if (requiredActions == null) {
+            requiredActions = new LinkedList<>();
+        }
         return requiredActions;
     }
 
@@ -219,11 +230,25 @@ public class UserEntity {
     }
 
     public Collection<CredentialEntity> getCredentials() {
+        if (credentials == null) {
+            credentials = new LinkedList<>();
+        }
         return credentials;
     }
 
     public void setCredentials(Collection<CredentialEntity> credentials) {
         this.credentials = credentials;
+    }
+
+    public Collection<FederatedIdentityEntity> getFederatedIdentities() {
+        if (federatedIdentities == null) {
+            federatedIdentities = new LinkedList<>();
+        }
+        return federatedIdentities;
+    }
+
+    public void setFederatedIdentities(Collection<FederatedIdentityEntity> federatedIdentities) {
+        this.federatedIdentities = federatedIdentities;
     }
 
     public String getFederationLink() {

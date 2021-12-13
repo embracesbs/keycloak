@@ -32,7 +32,7 @@ import static org.keycloak.testsuite.util.UIUtils.getTextFromElement;
  * @author Vaclav Muzikar <vmuzikar@redhat.com>
  */
 public class SigningInPage extends AbstractLoggedInPage {
-    public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("MMMM d, yyyy h:mm a", Locale.ENGLISH);
+    public static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("MMMM d, yyyy, h:mm a", Locale.ENGLISH);
 
     private static final String CATEG_TITLE = "-categ-title";
 
@@ -209,7 +209,10 @@ public class SigningInPage extends AbstractLoggedInPage {
         }
 
         public String getCreatedAtStr() {
-            return getTextFromItem(CREATED_AT).split("Created: ")[1];
+            String lastCreatedAtText = getTextFromElement(
+                    driver.findElement(By.cssSelector("[id*='" + CREATED_AT + "'] strong")));
+
+            return getTextFromItem(CREATED_AT).substring(lastCreatedAtText.length()).trim();
         }
 
         public LocalDateTime getCreatedAt() {

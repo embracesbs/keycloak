@@ -27,15 +27,21 @@ import org.keycloak.authorization.model.ResourceServer;
 import org.keycloak.authorization.store.ResourceServerStore;
 import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.common.util.Time;
-import org.keycloak.constants.EmbraceMultiTenantConstants;
-import org.keycloak.models.*;
-import org.keycloak.models.session.UserSessionPersisterProvider;
-import org.keycloak.models.utils.KeycloakModelUtils;
+import org.keycloak.models.ClientModel;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.ProtocolMapperModel;
+import org.keycloak.models.RealmModel;
+import org.keycloak.models.UserManager;
+import org.keycloak.models.UserModel;
+import org.keycloak.models.UserSessionProvider;
 import org.keycloak.models.utils.RepresentationToModel;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.LoginProtocolFactory;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.protocol.oidc.mappers.UserSessionNoteMapper;
+import org.keycloak.protocol.saml.SamlClient;
+import org.keycloak.protocol.saml.SamlConfigAttributes;
+import org.keycloak.protocol.saml.SamlProtocol;
 import org.keycloak.representations.adapters.config.BaseRealmConfig;
 import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
 import org.keycloak.representations.idm.ClientRepresentation;
@@ -45,11 +51,13 @@ import org.keycloak.sessions.AuthenticationSessionProvider;
 
 import java.io.*;
 import java.net.URI;
-import java.util.*;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
-
-import static java.lang.Boolean.FALSE;
-import static java.lang.Boolean.TRUE;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -79,8 +87,8 @@ public class ClientManager {
      * @param addDefaultRoles
      * @return
      */
-    public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation rep, boolean addDefaultRoles) {
-        ClientModel client = RepresentationToModel.createClient(session, realm, rep, addDefaultRoles);
+    public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation rep) {
+        ClientModel client = RepresentationToModel.createClient(session, realm, rep);
 
         if (rep.getProtocol() != null) {
             LoginProtocolFactory providerFactory = (LoginProtocolFactory) session.getKeycloakSessionFactory().getProviderFactory(LoginProtocol.class, rep.getProtocol());
@@ -89,8 +97,7 @@ public class ClientManager {
 
         // remove default mappers if there is a template
         if (rep.getProtocolMappers() == null && rep.getClientTemplate() != null) {
-            Set<ProtocolMapperModel> mappers = client.getProtocolMappers();
-            for (ProtocolMapperModel mapper : mappers) client.removeProtocolMapper(mapper);
+            client.getProtocolMappersStream().collect(Collectors.toList()).forEach(client::removeProtocolMapper);
         }
         return client;
 
@@ -369,11 +376,6 @@ public class ClientManager {
                 sessions.onClientRemoved(realm, client);
             }
 
-            UserSessionPersisterProvider sessionsPersister = realmManager.getSession().getProvider(UserSessionPersisterProvider.class);
-            if (sessionsPersister != null) {
-                sessionsPersister.onClientRemoved(realm, client);
-            }
-
             AuthenticationSessionProvider authSessions = realmManager.getSession().authenticationSessions();
             if (authSessions != null) {
                 authSessions.onClientRemoved(realm, client);
@@ -466,13 +468,21 @@ public class ClientManager {
         }
     }
 
-    public void clientIdChanged(ClientModel client, String newClientId) {
+    public void clientIdChanged(ClientModel client, ClientRepresentation newClientRepresentation) {
+        String newClientId = newClientRepresentation.getClientId();
         logger.debugf("Updating clientId from '%s' to '%s'", client.getClientId(), newClientId);
 
         UserModel serviceAccountUser = realmManager.getSession().users().getServiceAccount(client);
         if (serviceAccountUser != null) {
             String username = ServiceAccountConstants.SERVICE_ACCOUNT_USER_PREFIX + newClientId;
             serviceAccountUser.setUsername(username);
+        }
+
+        if (SamlProtocol.LOGIN_PROTOCOL.equals(client.getProtocol())) {
+            SamlClient samlClient = new SamlClient(client);
+            samlClient.setArtifactBindingIdentifierFrom(newClientId);
+
+            newClientRepresentation.getAttributes().put(SamlConfigAttributes.SAML_ARTIFACT_BINDING_IDENTIFIER, samlClient.getArtifactBindingIdentifier());
         }
     }
 
@@ -579,7 +589,7 @@ public class ClientManager {
 
         if (clientModel.isPublicClient() && !clientModel.isBearerOnly()) rep.setPublicClient(true);
         if (clientModel.isBearerOnly()) rep.setBearerOnly(true);
-        if (clientModel.getRoles().size() > 0) rep.setUseResourceRoleMappings(true);
+        if (clientModel.getRolesStream().count() > 0) rep.setUseResourceRoleMappings(true);
 
         rep.setResource(clientModel.getClientId());
 
@@ -623,7 +633,7 @@ public class ClientManager {
                 }
             }
         }
-        if (clientModel.getRoles().size() > 0) {
+        if (clientModel.getRolesStream().count() > 0) {
             buffer.append("    <use-resource-role-mappings>true</use-resource-role-mappings>\n");
         }
         buffer.append("</secure-deployment>\n");
