@@ -135,6 +135,7 @@ public class KeycloakApplication extends Application {
 
         ExportImportManager[] exportImportManager = new ExportImportManager[1];
 
+        // TODO: check if the change of migrateAndBootstrap() -> bootstrap() is correct?
         KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
             @Override
             public void run(KeycloakSession session) {
@@ -193,7 +194,7 @@ public class KeycloakApplication extends Application {
                     }
                 }
                 // TODO up here ^^
-
+                    
                 ApplianceBootstrap applianceBootstrap = new ApplianceBootstrap(session);
                 exportImportManager[0] = new ExportImportManager(session);
 
@@ -205,6 +206,17 @@ public class KeycloakApplication extends Application {
                 if (createMasterRealm) {
                     applianceBootstrap.createMasterRealm();
                 }
+                session.getTransactionManager().commit();
+
+                // once-run embrace data migration:
+                embraceMigration01();
+                embraceMigration02();
+                embraceMigration03();
+
+                // TODO: compare with previous change to see what exception handling existed here    
+                // } catch (RuntimeException re) {
+                //     if (session.getTransactionManager().isActive()) {
+                //         session.getTransactionManager().rollback();
             }
         });
 
@@ -217,6 +229,21 @@ public class KeycloakApplication extends Application {
         importAddUser();
 
         return exportImportManager[0];
+    }
+
+    // TODO: check if this method is embrace custom method and is still required?
+    protected void migrateModel() {
+        KeycloakSession session = sessionFactory.create();
+        try {
+            session.getTransactionManager().begin();
+            MigrationModelManager.migrate(session);
+            session.getTransactionManager().commit();
+        } catch (Exception e) {
+            session.getTransactionManager().rollback();
+            throw e;
+        } finally {
+            session.close();
+        }
     }
 
     protected void embraceMigration01() {

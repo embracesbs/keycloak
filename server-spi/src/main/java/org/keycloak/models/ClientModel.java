@@ -38,7 +38,12 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
 
     String PRIVATE_KEY = "privateKey";
     String PUBLIC_KEY = "publicKey";
-    String X509CERTIFICATE = "X509Certificate";
+    String X509CERTIFICATE = "X509Certificate"; 
+    
+    // MULTI-TENANCY RELATED ATTRIBUTES
+    
+    String MULTI_TENANT = "multi.tenant.client";
+    String MULTI_TENANT_SERVICE_ACCOUNT_ROLES = "multi.tenant.service.account.roles";
 
     public static class SearchableFields {
         public static final SearchableModelField<ClientModel> ID                 = new SearchableModelField<>("id", String.class);

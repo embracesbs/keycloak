@@ -354,6 +354,7 @@ public class UserMapStorage implements UserLookupProvider.Streams, UserStoragePr
           .map(userName -> createUser(realm, userName));
     }
 
+    // TODO: not sure, maybe implement stream
     @Override
     public Stream<UserModel> searchForUserByUserAttributeStream(RealmModel realm, String attrName, String attrValue) {
         if (isImportEnabled()) {

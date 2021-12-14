@@ -610,6 +610,11 @@ public class UserCacheSession implements UserCache.Streams {
         return getDelegate().searchForUserByUserAttributeStream(realm, attrName, attrValue);
     }
 
+    // TODO: make stream?
+    public List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+        return getDelegate().searchForUserByUserAttributePaged(attrName, attrValue, realm, firstResult, maxResults);
+    }
+
     @Override
     public Stream<FederatedIdentityModel> getFederatedIdentitiesStream(RealmModel realm, UserModel user) {
         logger.tracev("getFederatedIdentities: {0}", user.getUsername());

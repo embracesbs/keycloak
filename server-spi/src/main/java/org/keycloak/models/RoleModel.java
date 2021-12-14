@@ -29,6 +29,11 @@ import java.util.stream.Stream;
  * @version $Revision: 1 $
  */
 public interface RoleModel {
+    
+    // READ-ONLY ROLE RELATED ATTRIBUTES
+    
+    String READ_ONLY_ROLE_ATTRIBUTE = "read.only";
+    String READ_ONLY_ROLE_REALMS_ATTRIBUTE = "read.only.explicit.realms";
 
     public static class SearchableFields {
         public static final SearchableModelField<RoleModel> ID                  = new SearchableModelField<>("id", String.class);

@@ -63,6 +63,11 @@ import java.util.List;
 import java.util.Optional;
 import org.keycloak.utils.ReservedCharValidator;
 
+import org.keycloak.storage.UserStorageProviderModel;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import static java.lang.Boolean.TRUE;
+
 /**
  * Per request object
  *
@@ -218,6 +223,7 @@ public class RealmManager {
             adminCli.setStandardFlowEnabled(false);
             adminCli.setImplicitFlowEnabled(false);
             adminCli.setDirectAccessGrantsEnabled(false);
+            adminCli.setPublicClient(false);
             adminCli.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
 
             if (realm.getName().equals(Config.getAdminRealm())) {
@@ -584,7 +590,8 @@ public class RealmManager {
             setupOfflineTokens(realm, rep);
         }
 
-
+        
+        // TODO: check doc 594 TODO: implement?
         if (rep.getClientScopes() == null) {
             createDefaultClientScopes(realm);
         }
@@ -630,6 +637,9 @@ public class RealmManager {
         setupAuthorizationServices(realm);
         setupClientRegistrations(realm);
 
+        setupMultiTenantClientRegistrations(realm);
+        setupReadonlyRolesRegistrations(realm);
+        
         if (rep.getKeycloakVersion() != null) {
             MigrationModelManager.migrateImport(session, realm, rep, skipUserDependent);
         }

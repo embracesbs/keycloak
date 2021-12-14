@@ -60,6 +60,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
+import java.util.stream.Collectors;
+
+import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;
+import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_REALMS_ATTRIBUTE;
 
 /**
  * @resource Roles
@@ -461,7 +465,7 @@ public class RoleContainerResource extends RoleResource {
         if (role == null) {
             throw new NotFoundException("Could not find role");
         }
-        
+        // TODO: probably obsolete code, but check with old change to be sure. (stream is better)
         return session.groups().getGroupsByRoleStream(realm, role, firstResult, maxResults)
                 .map(g -> ModelToRepresentation.toRepresentation(g, !briefRepresentation));
     }   

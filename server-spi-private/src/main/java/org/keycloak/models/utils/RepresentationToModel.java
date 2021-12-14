@@ -1339,11 +1339,11 @@ public class RepresentationToModel {
      * @param clientRep
      * @return
      */
-    public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep) {
-        return createClient(session, realm, resourceRep, null);
+    public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep, boolean addDefaultRoles) {
+        return createClient(session, realm, resourceRep, addDefaultRoles, null);
     }
 
-    private static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep, Map<String, String> mappedFlows) {
+    private static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation resourceRep, boolean addDefaultRoles, Map<String, String> mappedFlows) {
         logger.debugv("Create client: {0}", resourceRep.getClientId());
 
         ClientModel client = resourceRep.getId() != null ? realm.addClient(resourceRep.getId(), resourceRep.getClientId()) : realm.addClient(resourceRep.getClientId());
@@ -1402,6 +1402,9 @@ public class RepresentationToModel {
         }
 
         client.setSecret(resourceRep.getSecret());
+        if (client.getSecret() == null) {
+            KeycloakModelUtils.generateSecret(client);
+        }
 
         if (clientRep.getAttributes() != null) {
             for (Map.Entry<String, String> entry : clientRep.getAttributes().entrySet()) {
@@ -1467,7 +1470,11 @@ public class RepresentationToModel {
                 client.registerNode(entry.getKey(), entry.getValue());
             }
         }
-
+        
+        if (addDefaultRoles && clientRep.getDefaultRoles() != null) {
+            client.updateDefaultRoles(clientRep.getDefaultRoles());
+        }
+        
         if (resourceRep.getProtocolMappers() != null) {
             // first, remove all default/built in mappers
             client.getProtocolMappersStream().collect(Collectors.toList()).forEach(client::removeProtocolMapper);

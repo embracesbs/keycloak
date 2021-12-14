@@ -83,6 +83,36 @@ public class UserStorageManager extends AbstractStorageManager<UserStorageProvid
         return session.userFederatedStorage();
     }
 
+    public static <T> List<T> getStorageProviders(KeycloakSession session, RealmModel realm, Class<T> type) {
+        List<T> list = new LinkedList<>();
+        for (UserStorageProviderModel model : getStorageProviders(realm)) {
+            UserStorageProviderFactory factory = (UserStorageProviderFactory) session.getKeycloakSessionFactory().getProviderFactory(UserStorageProvider.class, model.getProviderId());
+            if (factory == null) {
+                logger.warnv("Configured UserStorageProvider {0} of provider id {1} does not exist in realm {2}", model.getName(), model.getProviderId(), realm.getName());
+                continue;
+            }
+            if (Types.supports(type, factory, UserStorageProviderFactory.class)) {
+                list.add(type.cast(getStorageProviderInstance(session, model, factory)));
+            }
+        }
+    }
+
+    public static <T> List<T> getEnabledStorageProviders(KeycloakSession session, RealmModel realm, Class<T> type) {
+        List<T> list = new LinkedList<>();
+        for (UserStorageProviderModel model : getStorageProviders(realm)) {
+            if (!model.isEnabled()) continue;
+            UserStorageProviderFactory factory = (UserStorageProviderFactory) session.getKeycloakSessionFactory().getProviderFactory(UserStorageProvider.class, model.getProviderId());
+            if (factory == null) {
+                logger.warnv("Configured UserStorageProvider {0} of provider id {1} does not exist in realm {2}", model.getName(), model.getProviderId(), realm.getName());
+                continue;
+            }
+            if (Types.supports(type, factory, UserStorageProviderFactory.class)) {
+                list.add(type.cast(getStorageProviderInstance(session, model, factory)));
+            }
+        }
+        return list;
+    }
+
     /**
      * Allows a UserStorageProvider to proxy and/or synchronize an imported user.
      *
@@ -449,7 +479,7 @@ public class UserStorageManager extends AbstractStorageManager<UserStorageProvid
         , realm, firstResult, maxResults);
         return importValidation(realm, results);
     }
-
+    // TODO: not sure what to do here, is replaced with a stream, but not sure it has paging
     @Override
     public Stream<UserModel> searchForUserByUserAttributeStream(RealmModel realm, String attrName, String attrValue) {
         Stream<UserModel> results = query((provider, firstResultInQuery, maxResultsInQuery) -> {

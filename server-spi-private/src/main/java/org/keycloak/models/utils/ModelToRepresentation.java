@@ -639,6 +639,7 @@ public class ModelToRepresentation {
 
             if (resourceServer != null) {
                 rep.setAuthorizationServicesEnabled(true);
+                rep.setAuthorizationSettings(toRepresentation(resourceServer, clientModel));
             }
         }
 

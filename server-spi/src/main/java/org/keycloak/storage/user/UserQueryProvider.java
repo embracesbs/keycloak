@@ -536,6 +536,24 @@ public interface UserQueryProvider {
         return value != null ? value.stream() : Stream.empty();
     }
 
+    // TODO: make stream? 
+    /**
+     * Search for users that have a specific attribute with a specific value.
+     * Implementations do not have to search in UserFederatedStorageProvider
+     * as this is done automatically.
+     *
+     * @see org.keycloak.storage.federated.UserFederatedStorageProvider
+     *
+     *
+     * @param attrName
+     * @param attrValue
+     * @param realm
+     * @param firstResult
+     * @param maxResults
+     * @return
+     */
+    List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults);
+    
     /**
      * The {@link Streams} interface makes all collection-based methods in {@link UserQueryProvider} default by
      * providing implementations that delegate to the {@link Stream}-based variants instead of the other way around.

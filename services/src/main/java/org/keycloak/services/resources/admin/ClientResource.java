@@ -90,6 +90,10 @@ import java.util.stream.Stream;
 
 import static java.lang.Boolean.TRUE;
 
+import org.keycloak.services.validation.ClientValidator;
+import org.keycloak.services.validation.PairwiseClientValidator;
+import org.keycloak.services.validation.ValidationMessages;
+import org.keycloak.validation.ClientValidationUtil;
 
 /**
  * Base resource class for managing one particular client of a realm.
@@ -125,7 +129,9 @@ public class ClientResource {
         ResteasyProviderFactory.getInstance().injectProperties(mappers);
         return mappers;
     }
-
+    
+    // TODO: compare with old changes, because not sure where this goes
+    
     /**
      * Update the client
      * @param rep

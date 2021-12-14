@@ -49,6 +49,10 @@ import org.keycloak.representations.idm.authorization.ResourceServerRepresentati
 import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 
+import org.keycloak.constants.EmbraceMultiTenantConstants;
+import org.keycloak.models.session.UserSessionPersisterProvider;
+import org.keycloak.models.utils.KeycloakModelUtils;
+
 import java.io.*;
 import java.net.URI;
 import java.util.Collections;

@@ -64,6 +64,13 @@ import java.util.stream.Stream;
 import static java.lang.Boolean.TRUE;
 import static org.keycloak.utils.StreamsUtil.paginatedStream;
 
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Properties;
+import static java.lang.Boolean.TRUE;
+
 /**
  * Base resource class for managing a realm's clients.
  *
@@ -111,7 +118,7 @@ public class ClientsResource {
 
         boolean canView = auth.clients().canView();
         Stream<ClientModel> clientModels = Stream.empty();
-
+        // TODO: probably new code is fine, but check with old changes to be sure
         if (searchQuery != null) {
             Map<String, String> attributes = SearchQueryUtils.getFields(searchQuery);
             clientModels = canView
@@ -200,6 +207,16 @@ public class ClientsResource {
 
                 if (authorizationSettings != null) {
                     authorizationService.resourceServer().importSettings(authorizationSettings);
+                }
+            }
+            
+            // TODO: check this with old change
+            // is client is multi tenant client in 'master' realm ... do the MT voodoo ...
+            if (TRUE.equals(manager.isMultiTenantClientRepresentation(rep)) && realm.getName().equals(Config.getAdminRealm())) {
+                boolean creationSuccess = manager.setupMultiTenantClientRegistrations(session, realm, clientModel, rep);
+                if (!creationSuccess) {
+                    session.getTransactionManager().setRollbackOnly();
+                    throw new ErrorResponseException(Errors.INVALID_INPUT, "multi-tenant client instances registrations failed!", Response.Status.BAD_REQUEST);
                 }
             }
 

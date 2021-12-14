@@ -1171,6 +1171,10 @@ public class RealmCacheSession implements CacheRealmProvider {
         return getClientDelegate().searchClientsByAttributes(realm, attributes, firstResult, maxResults);
     }
 
+    public List<ClientModel> getClientsByAttribute(RealmModel realm, String attributeName, String attributeValue) {
+        return getClientDelegate().getClientsByAttribute(realm, attributeName, attributeValue);
+    }
+
     @Override
     public ClientModel getClientByClientId(RealmModel realm, String clientId) {
         String cacheKey = getClientByClientIdCacheKey(clientId, realm.getId());
