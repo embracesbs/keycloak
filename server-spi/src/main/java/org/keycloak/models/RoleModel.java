@@ -18,11 +18,7 @@
 package org.keycloak.models;
 
 import org.keycloak.storage.SearchableModelField;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.*;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
