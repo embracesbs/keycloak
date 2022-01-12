@@ -169,7 +169,11 @@
         <!-- webauthn support -->
         <webauthn4j.version>0.10.2.RELEASE</webauthn4j.version>
         <org.apache.kerby.kerby-asn1.version>2.0.0</org.apache.kerby.kerby-asn1.version>
-
+        
+        <!-- sonarcloud -->        
+        <sonar.organization>embracesbs</sonar.organization>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        
     </properties>
 
     <url>http://keycloak.org</url>
