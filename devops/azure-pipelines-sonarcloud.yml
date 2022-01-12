@@ -1,0 +1,37 @@
+trigger:
+- release-embrace
+
+variables:
+#- name: Version.Major
+#  value: 10
+#- name: Version.Minor
+#  value: 0
+#- name: Version.Patch
+#  value: 2
+#- name: Version.Tag
+#  value: $(Version.Major).$(Version.Minor).$(Version.Patch)
+#- name: Version.Revision
+#  value: $[counter(variables['Version.Tag'], 0)]
+#- name: Version
+#  value: $(Version.Tag)-$(Version.Revision)
+#- name: Docker.ServiceConnectionName
+#  value: 'embraceclouddocker'
+#- name: Docker.Registry
+#  value: 'embraceclouddocker.azurecr.io' 
+#- name: Docker.Repository.Name
+#  value: keycloak-embrace-jdk
+- group: var-identity-keycloak-build
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+
+- script: |
+    echo "Hello sonar!"
+    mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=identity-keycloak
+  env:
+    SONAR_TOKEN: $(sonarcloud-project-sonar-token)
+  # workingDirectory: #
+  failOnStderr: true
+  displayName: Sonarcloud

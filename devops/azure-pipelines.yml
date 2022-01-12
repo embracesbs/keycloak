@@ -28,7 +28,6 @@ variables:
   value: 'embraceclouddocker.azurecr.io' 
 - name: Docker.Repository.Name
   value: keycloak-embrace-jdk
-- group: var-identity-keycloak-build
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -37,16 +36,6 @@ steps:
 
 - checkout: MyGitHubKeycloakContainers
   path: buildscripts
-
-- script: |
-    echo "Hello sonar!"
-    mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=identity-keycloak
-  env:
-    SONAR_TOKEN: $(sonarcloud-project-sonar-token)
-  name:
-  # workingDirectory: #
-  failOnStderr: true
-  displayName: Sonarcloud
 
 - task: Docker@2
   name: DockerBuild
