@@ -29,7 +29,7 @@ steps:
 
 - script: |
     echo "Hello sonar!"
-    mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=identity-keycloak
+    mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=identity-keycloak -DskipTests
   env:
     SONAR_TOKEN: $(sonarcloud-project-sonar-token)
   # workingDirectory: #
