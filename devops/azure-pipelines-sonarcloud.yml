@@ -21,15 +21,29 @@ variables:
 #- name: Docker.Repository.Name
 #  value: keycloak-embrace-jdk
 - group: var-identity-keycloak-build
+- name: MAVEN_CACHE_FOLDER
+  value: $(Pipeline.Workspace)/.m2/repository
+- name: MAVEN_OPTS
+  value: ''
 
 pool:
   vmImage: 'ubuntu-latest'
 
 steps:
 
+- task: Cache@2
+  inputs:
+    key: 'maven | "$(Agent.OS)" | **/pom.xml'
+    restoreKeys: |
+      maven | "$(Agent.OS)"
+      maven
+    path: $(MAVEN_CACHE_FOLDER)
+  displayName: Cache Maven local repo
+
 - script: |
     echo "Hello sonar!"
-    mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=identity-keycloak -DskipTests=true
+    mvn install
+    mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=identity-keycloak -DskipTests=true -Dmaven.repo.local=$(MAVEN_CACHE_FOLDER)
   env:
     SONAR_TOKEN: $(sonarcloud-project-sonar-token)
   # workingDirectory: #
