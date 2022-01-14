@@ -32,7 +32,7 @@ steps:
     java -version
     mvn -version
     git --version
-    # mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=identity-keycloak -DskipTests
+    # mvn verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=identity-keycloak -DskipTests=true
   env:
     SONAR_TOKEN: $(sonarcloud-project-sonar-token)
   # workingDirectory: #
