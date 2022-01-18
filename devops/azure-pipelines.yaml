@@ -1,0 +1,70 @@
+trigger:
+- release-embrace
+
+resources:
+  repositories:
+  - repository: MyGitHubKeycloakContainers
+    type: github
+    endpoint: GitHubEmbraceSBSKeycloak
+    name: embracesbs/keycloak-containers
+    ref: refs/heads/release-embrace
+
+variables:
+- name: Version.Major
+  value: 10
+- name: Version.Minor
+  value: 0
+- name: Version.Patch
+  value: 2
+- name: Version.Tag
+  value: $(Version.Major).$(Version.Minor).$(Version.Patch)
+- name: Version.Revision
+  value: $[counter(variables['Version.Tag'], 0)]
+- name: Version
+  value: $(Version.Tag)-$(Version.Revision)
+- name: Docker.ServiceConnectionName
+  value: 'embraceclouddocker'
+- name: Docker.Registry
+  value: 'embraceclouddocker.azurecr.io' 
+- name: Docker.Repository.Name
+  value: keycloak-embrace-jdk
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+
+- checkout: MyGitHubKeycloakContainers
+  path: buildscripts
+
+- task: Docker@2
+  name: DockerBuild
+  displayName: 'Docker Build'
+  inputs:
+    command: build
+    containerRegistry: $(Docker.ServiceConnectionName)
+    repository: $(Docker.Repository.Name)
+    dockerfile: '$(Agent.BuildDirectory)/buildscripts/server/Dockerfile'
+    arguments: --build-arg GIT_REPO=embracesbs/keycloak --build-arg GIT_BRANCH=release-embrace
+    addPipelineData: false
+    tags: |
+      $(Version)
+      $(Version.Tag)
+      $(Version.Major).$(Version.Minor)
+      $(Version.Major)
+
+- task: Docker@2
+  name: DockerPush
+  condition: and(succeeded(), not(eq(variables['Build.Reason'], 'PullRequest'))) # don't run for pullrequest (pr's only do build as a CI process)
+  displayName: 'Docker Push'
+  inputs:
+    command: push
+    containerRegistry: $(Docker.ServiceConnectionName)
+    repository: $(Docker.Repository.Name)
+    buildContext: '**'
+    addPipelineData: false
+    tags: |
+      $(Version)
+      $(Version.Tag)
+      $(Version.Major).$(Version.Minor)
+      $(Version.Major)
