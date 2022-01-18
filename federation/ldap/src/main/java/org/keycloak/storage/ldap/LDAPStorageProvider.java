@@ -269,6 +269,12 @@ public class LDAPStorageProvider implements UserStorageProvider,
          }
     }
 
+    @Override
+    public Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue,
+                                                                     int firstResult, int maxResults) {
+        return searchForUserByUserAttributeStream(realm, attrName, attrValue);
+    }
+
     public boolean synchronizeRegistrations() {
         return "true".equalsIgnoreCase(model.getConfig().getFirst(LDAPConstants.SYNC_REGISTRATIONS)) && editMode == UserStorageProvider.EditMode.WRITABLE;
     }

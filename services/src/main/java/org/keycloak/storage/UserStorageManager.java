@@ -469,6 +469,26 @@ public class UserStorageManager extends AbstractStorageManager<UserStorageProvid
 
         return importValidation(realm, results);
     }
+    
+    @Override
+    public Stream<UserModel> searchForUserByUserAttributeStreamPaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+        Stream<UserModel> results = query((provider, firstResultInQuery, maxResultsInQuery) -> {
+            if (provider instanceof UserQueryProvider) {
+                return paginatedStream(((UserQueryProvider)provider).searchForUserByUserAttributeStream(realm, attrName, attrValue), firstResultInQuery, maxResultsInQuery);
+            } else if (provider instanceof UserFederatedStorageProvider) {
+                return  paginatedStream(((UserFederatedStorageProvider)provider).getUsersByUserAttributeStream(realm, attrName, attrValue)
+                        .map(id -> getUserById(realm, id))
+                        .filter(Objects::nonNull), firstResultInQuery, maxResultsInQuery);
+
+            }
+            return Stream.empty();
+        }, realm, firstResult, maxResults);
+
+        // removeDuplicates method may cause concurrent issues, it should not be used on parallel streams
+        // leave duplicates in paged result // results = removeDuplicates(results);
+
+        return importValidation(realm, results);
+    }
 
     /** {@link UserQueryProvider} methods implementation end here
         {@link UserBulkUpdateProvider} methods implementation start here */

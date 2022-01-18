@@ -31,6 +31,7 @@ import org.keycloak.storage.client.ClientStorageProviderFactory;
 import org.keycloak.storage.client.ClientStorageProviderModel;
 import org.keycloak.utils.ServicesUtils;
 
+import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.Set;
@@ -160,6 +161,12 @@ public class ClientStorageManager implements ClientProvider {
     @Override
     public Stream<ClientModel> searchClientsByAttributes(RealmModel realm, Map<String, String> attributes, Integer firstResult, Integer maxResults) {
         return query((p, f, m) -> p.searchClientsByAttributes(realm, attributes, f, m), realm, firstResult, maxResults);
+    }
+
+    @Override
+    public Stream<ClientModel> getClientsByAttribute(RealmModel realm, String attributeName, String attributeValue) {
+        Map<String, String> attributes = Collections.singletonMap(attributeName, attributeValue);
+        return searchClientsByAttributes(realm, attributes, 0, 100);
     }
 
     @FunctionalInterface
