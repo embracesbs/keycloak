@@ -63,6 +63,10 @@ import java.util.stream.Stream;
 import static java.lang.Boolean.TRUE;
 import static org.keycloak.utils.StreamsUtil.paginatedStream;
 
+import org.keycloak.Config;
+import java.io.Serializable;
+import static java.lang.Boolean.FALSE;
+
 /**
  * Base resource class for managing a realm's clients.
  *
@@ -178,11 +182,13 @@ public class ClientsResource {
 
             ClientModel clientModel = ClientManager.createClient(session, realm, rep);
 
+            ClientManager manager = new ClientManager(new RealmManager(session));
+
             if (TRUE.equals(rep.isServiceAccountsEnabled())) {
                 UserModel serviceAccount = session.users().getServiceAccount(clientModel);
 
                 if (serviceAccount == null) {
-                    new ClientManager(new RealmManager(session)).enableServiceAccount(clientModel);
+                    manager.enableServiceAccount(clientModel);
                 }
             }
 
@@ -197,6 +203,15 @@ public class ClientsResource {
 
                 if (authorizationSettings != null) {
                     authorizationService.resourceServer().importSettings(authorizationSettings);
+                }
+            }
+
+            // is client is multi tenant client in 'master' realm ... do the MT voodoo ...
+            if (TRUE.equals(manager.isMultiTenantClientRepresentation(rep)) && realm.getName().equals(Config.getAdminRealm())) {
+                boolean creationSuccess = manager.setupMultiTenantClientRegistrations(session, realm, clientModel, rep);
+                if (!creationSuccess) {
+                    session.getTransactionManager().setRollbackOnly();
+                    throw new ErrorResponseException(Errors.INVALID_INPUT, "multi-tenant client instances registrations failed!", Response.Status.BAD_REQUEST);
                 }
             }
 
@@ -241,4 +256,99 @@ public class ClientsResource {
         return clientResource;
     }
 
+    /**
+     * Path for retrieval of all multi-tenant client
+     * related client ids (non-master realm clients).
+     *
+     * @param clientId of client (not id)
+     * @return list of realmName-clientId tuples
+     */
+    @GET
+    @Path("/multitenant/{clientId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<RealmWithClientUidRepresentation> getMultiTenantClientIds(final @PathParam("clientId") String clientId) {
+
+        // here we go:
+        // 0. must have special realm role!
+        // 1. check if current realm master
+        // 2. check if client exists
+        // 3. check if client is multi-tenant
+        // 4. list all non-master realms
+        // 5. foreach get client by clientId
+        // 6. make a list and return
+
+        // 0. must have special realm role!
+        if (FALSE.equals(auth.clients().canListMultitenantClientIds())) {
+            throw new ForbiddenException();
+        }
+
+        //try to resolve multitenant client
+        // 1. check if client exists
+        ClientModel clientModel = realm.getClientByClientId(clientId);
+        if (clientModel == null) {
+            // doing this to make sure somebody can't phish ids
+            throw new NotFoundException("Could not find client");
+        }
+
+        // 2. check current realm 'master'
+        // 3. check client is multi-tenant
+        if (FALSE.equals(clientModel.getMultiTenant())
+                || !realm.getName().equals(Config.getAdminRealm())) {
+            throw new NotFoundException("Not a MultiTenant Client.");
+        }
+
+        List<RealmWithClientUidRepresentation> result = new ArrayList<>();
+
+        // 4. list all non-master realms
+        // 5. foreach get client by clientId
+        // 6. make a list and return
+        List<RealmModel> realms = session.realms().getRealms();
+
+        for (RealmModel realmElement : realms) {
+            String currentRealmName = realmElement.getName();
+
+            // exclude 'master'
+            if (currentRealmName.equals(Config.getAdminRealm()))
+                continue;
+
+            ClientModel realmClientFound = realmElement.getClientByClientId(clientId);
+            if (realmClientFound == null)
+                continue;
+
+            result.add(RealmWithClientUidRepresentation
+                    .asRepresentation(currentRealmName, realmClientFound.getId()));
+        }
+
+        return result;
+    }
+
+    public static class RealmWithClientUidRepresentation implements Serializable {
+        private String realmName;
+        private String clientGuid;
+
+        private RealmWithClientUidRepresentation(String realmName, String clientGuid){
+            this.realmName = realmName;
+            this.clientGuid = clientGuid;
+        }
+
+        public static RealmWithClientUidRepresentation asRepresentation(String realmName, String clientUid){
+            return new RealmWithClientUidRepresentation(realmName, clientUid);
+        }
+
+        public String getRealmName() {
+            return realmName;
+        }
+
+        public void setRealmName(String realmName) {
+            this.realmName = realmName;
+        }
+
+        public String getClientGuid() {
+            return clientGuid;
+        }
+
+        public void setClientGuid(String clientGuid) {
+            this.clientGuid = clientGuid;
+        }
+    }
 }

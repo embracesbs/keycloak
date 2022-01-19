@@ -88,6 +88,9 @@ import java.util.stream.Stream;
 
 import static java.lang.Boolean.TRUE;
 
+import org.keycloak.Config;
+import org.keycloak.OAuthErrorException;
+import org.keycloak.constants.EmbraceMultiTenantConstants;
 
 /**
  * Base resource class for managing one particular client of a realm.
@@ -134,6 +137,30 @@ public class ClientResource {
     public Response update(final ClientRepresentation rep) {
         auth.clients().requireConfigure(client);
 
+        // if case of multi-tenant client in 'master' realm ... do the MT update voodoo ...
+        ClientManager manager = new ClientManager(new RealmManager(session));
+        if (IsMultiTenantClient() && realm.getName().equals(Config.getAdminRealm())) {
+
+            // disallow multi-tenant client resource server function disablement
+            if (IsMultiTenantResourceServerClient() && HasNoAuthorisationRoleSet(rep)) {
+                session.getTransactionManager().setRollbackOnly();
+                throw new ErrorResponseException(Errors.NOT_ALLOWED, "Multi-tenant client: resource server function disablement is forbidden!", Response.Status.FORBIDDEN);
+            }
+
+            // disallow name change for existing multi-tenant client with authorization enabled (resource server)
+            if (!rep.getClientId().equalsIgnoreCase(client.getClientId()) && IsMultiTenantResourceServerClient()) {
+                session.getTransactionManager().setRollbackOnly();
+                throw new ErrorResponseException(Errors.NOT_ALLOWED, "Multi-tenant resource server clientID change is forbidden!", Response.Status.FORBIDDEN);
+            }
+
+            boolean updateSuccess = manager.updateMultiTenantClientRegistrations(session, realm, client, rep);
+
+            if (!updateSuccess) {
+                session.getTransactionManager().setRollbackOnly();
+                throw new ErrorResponseException(OAuthErrorException.SERVER_ERROR, "Multi-tenant client update failed at realm instance level.", Response.Status.INTERNAL_SERVER_ERROR);
+            }
+        }
+
         try {
             session.clientPolicy().triggerOnEvent(new AdminClientUpdateContext(rep, client, auth.adminAuth()));
 
@@ -156,6 +183,18 @@ public class ClientResource {
         } catch (ClientPolicyException cpe) {
             throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
         }
+    }
+
+    private boolean HasNoAuthorisationRoleSet(ClientRepresentation rep) {
+        return (Arrays.stream(client.getMultiTenantServiceAccountRoles(rep.getAttributes())).noneMatch(r -> r.contains("-authorization")));
+    }
+
+    private boolean IsMultiTenantResourceServerClient() {
+        return (IsMultiTenantClient() && Arrays.stream(client.getMultiTenantServiceAccountRoles()).anyMatch(r -> r.contains("-authorization")));
+    }
+
+    private boolean IsMultiTenantClient() {
+        return (TRUE.equals(client.getMultiTenant()));
     }
 
     /**
@@ -215,6 +254,11 @@ public class ClientResource {
 
         if (client == null) {
             throw new NotFoundException("Could not find client");
+        }
+
+        // prevent deletion of multi-tenant resource servers (both master and realm instances)
+        if (IsMultiTenantResourceServerClient()) {
+            throw new ErrorResponseException(Errors.NOT_ALLOWED, "Resource-server multi-tenant client deletion is forbidden!", Response.Status.FORBIDDEN);
         }
 
         try {
@@ -354,6 +398,16 @@ public class ClientResource {
         if (clientScope == null) {
             throw new javax.ws.rs.NotFoundException("Client scope not found");
         }
+        
+        // if mt-client prevent removal of specialized scopes!
+        if (realm.getName().equals(Config.getAdminRealm()) &&
+                client.getMultiTenant() &&
+                clientScope.getName().startsWith(EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX)) {
+            // ignore this request
+            logger.infov("Preventing deletion of specialized multi-tenant system client scope {0} as optional client scope of the client {1}", clientScope.getName(), client.getName());
+            return;
+        }
+
         client.removeClientScope(clientScope);
 
         adminEvent.operation(OperationType.DELETE).resource(ResourceType.CLIENT_SCOPE_CLIENT_MAPPING).resourcePath(session.getContext().getUri()).success();

@@ -73,6 +73,16 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.keycloak.authorization.AuthorizationProvider;
+import org.keycloak.authorization.model.Policy;
+import org.keycloak.authorization.model.ResourceServer;
+import org.keycloak.authorization.store.PolicyStore;
+import org.keycloak.authorization.store.ResourceServerStore;
+import org.keycloak.constants.EmbraceMultiTenantConstants;
+import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
+import java.util.stream.Collectors;
+import static java.lang.Boolean.TRUE;
+
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
@@ -85,8 +95,8 @@ public class KeycloakApplication extends Application {
 
     protected final PlatformProvider platform = Platform.getPlatform();
 
-    protected Set<Object> singletons = new HashSet<>();
-    protected Set<Class<?>> classes = new HashSet<>();
+    protected Set<Object> singletons = new HashSet<Object>();
+    protected Set<Class<?>> classes = new HashSet<Class<?>>();
 
     protected static KeycloakSessionFactory sessionFactory;
 
@@ -125,35 +135,28 @@ public class KeycloakApplication extends Application {
 
         ExportImportManager[] exportImportManager = new ExportImportManager[1];
 
-        KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
-            @Override
-            public void run(KeycloakSession session) {
-                DBLockManager dbLockManager = new DBLockManager(session);
-                dbLockManager.checkForcedUnlock();
-                DBLockProvider dbLock = dbLockManager.getDBLock();
-                dbLock.waitForLock(DBLockProvider.Namespace.KEYCLOAK_BOOT);
-                try {
-                    exportImportManager[0] = bootstrap();
-                } finally {
-                    dbLock.releaseLock();
-                }
+        KeycloakModelUtils.runJobInTransaction(sessionFactory, lockSession -> {
+            DBLockManager dbLockManager = new DBLockManager(lockSession);
+            dbLockManager.checkForcedUnlock();
+            DBLockProvider dbLock = dbLockManager.getDBLock();
+            dbLock.waitForLock(DBLockProvider.Namespace.KEYCLOAK_BOOT);
+            try {
+                exportImportManager[0] = migrateAndBootstrap();
+            } finally {
+                dbLock.releaseLock();
             }
         });
-                
+
         if (exportImportManager[0].isRunExport()) {
             exportImportManager[0].runExport();
         }
 
-        KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
-
-            @Override
-            public void run(KeycloakSession session) {
-                boolean shouldBootstrapAdmin = new ApplianceBootstrap(session).isNoMasterUser();
-                BOOTSTRAP_ADMIN_USER.set(shouldBootstrapAdmin);
+        KeycloakModelUtils.runJobInTransaction(sessionFactory, session -> {
+            boolean shouldBootstrapAdmin = new ApplianceBootstrap(session).isNoMasterUser();
+            BOOTSTRAP_ADMIN_USER.set(shouldBootstrapAdmin);
             }
-
         });
-
+        
         sessionFactory.publish(new PostMigrationEvent());
 
         setupScheduledTasks(sessionFactory);
@@ -200,6 +203,11 @@ public class KeycloakApplication extends Application {
                 if (createMasterRealm) {
                     applianceBootstrap.createMasterRealm();
                 }
+
+                // once-run embrace data migration:
+                embraceMigration01();
+                embraceMigration02();
+                embraceMigration03();
             }
         });
 
@@ -212,6 +220,277 @@ public class KeycloakApplication extends Application {
         importAddUser();
 
         return exportImportManager[0];
+    }
+
+    protected void embraceMigration01() {
+        // custom migrations for patching the existing data
+        logger.infov("Embrace data migration script 01 ...");
+        logger.infov("01. Add QUERY_MULTITENANT_CLIENT_IDS System Role Migration");
+
+        KeycloakSession session = sessionFactory.create();
+
+        // 01. QUERY_MULTITENANT_CLIENT_IDS Migration
+        try {
+            session.getTransactionManager().begin();
+
+            // check if master exists (first start!)
+            RealmModel masterRealm = session.realms().getRealm(Config.getAdminRealm());
+            if (null == masterRealm) return; //ths is first app start against empty DB
+
+            // add queryClientIdsRole to master admin app and make it admin role composite:
+            ClientModel masterAdminApp = masterRealm.getClientByClientId(masterRealm.getName() + AdminRoles.APP_SUFFIX);
+
+            // validate if we need to run the rest of the script:
+            logger.infov("Checking if multi-tenancy related migration is already done...");
+            RoleModel queryMtClientIdsRole = masterAdminApp.getRole(AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
+            if (null != queryMtClientIdsRole) {
+                logger.infov("Multi-tenancy related migration already done! Script run dismissed.");
+                return; // custom migration already done
+            }
+
+            logger.infov("Multi-tenancy related migration - START!");
+            RoleModel adminRole = masterRealm.getRole(AdminRoles.ADMIN);
+
+            logger.infov("Multi-tenancy migration - Adding role {0} to masterApp!", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
+            String queryClientIds = AdminRoles.QUERY_MULTITENANT_CLIENT_IDS;
+            RoleModel queryClientIdsRole = masterAdminApp.addRole(queryClientIds);
+            queryClientIdsRole.setDescription("${role_" + queryClientIds + "}");
+
+            logger.infov("Multi-tenancy migration - Adding role {0} to admin role composites!", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
+            adminRole.addCompositeRole(queryClientIdsRole);
+
+            // search for multitenant clients
+            logger.infov("Multi-tenancy migration - Searching for existing multi-tenant clients!");
+            List<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttribute(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+
+            if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
+                logger.infov("Multi-tenancy migration - None existing multitenant clients found!");
+                return; // no multitenant clients found
+            }
+
+            // foreach existing mt-client
+            for (ClientModel multiTenantClient : multiTenantMasterClients) {
+                logger.infov("Multi-tenancy migration - Multi-tenant client found: {0}! Migrating....", multiTenantClient.getClientId());
+                // find service account user for this mt-client
+                UserModel saUser = session.users().getServiceAccount(multiTenantClient);
+                // grant role to the Service Account user of this mt-client
+                logger.infov("Multi-tenancy migration - Granting special role {0} to client {1}....", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS, multiTenantClient.getClientId());
+                saUser.grantRole(queryClientIdsRole);
+                logger.infov("Multi-tenancy migration - Multi-tenant client {0} migration success....", multiTenantClient.getClientId());
+            }
+
+            logger.infov("Multi-tenancy related migration - SUCCESS!");
+            session.getTransactionManager().commit();
+        } catch (Exception e) {
+            logger.infov("Multi-tenancy related migration - Failed! :: {0}", e.getMessage());
+            session.getTransactionManager().rollback();
+            throw e;
+        } finally {
+            session.close();
+        }
+    }
+
+    protected void embraceMigration02() {
+        logger.infov("Embrace data migration script 02 ...");
+        logger.infov("02. Multi-tenant Clients Default Permissions Migration");
+
+        KeycloakSession session = sessionFactory.create();
+
+        // 02. Multi-tenant Clients Default Permissions Migration
+        try {
+            session.getTransactionManager().begin();
+
+            // check if master exists (first start!)
+            RealmModel masterRealm = session.realms().getRealm(Config.getAdminRealm());
+            if (null == masterRealm) return; //ths is first app start against empty DB
+
+            // search for multitenant clients
+            logger.infov("Multi-tenant clients default permissions migration - Searching for existing multitenant clients ...");
+            List<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttribute(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+
+            if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
+                logger.infov("Multi-tenant clients default permissions migration - None of existing multitenant clients found. Nothing to migrate!");
+                return; // no multitenant clients found
+            }
+
+            // mt clients found!
+            AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
+
+            // list all user realms
+            List<RealmModel> realms = session.realms().getRealms();
+
+            // foreach user realm, foreach mt-client instance
+            for (RealmModel clientRealm : realms) {
+
+                // exclude "master"
+                if (clientRealm.getName().equals(Config.getAdminRealm()))
+                    continue;
+
+                logger.infov("Multi-tenant clients default permissions migration - Changing the scope to realm {0} ....", clientRealm.getName());
+
+                // foreach existing mt-client
+                for (ClientModel multiTenantClient : multiTenantMasterClients) {
+                    logger.infov("Multi-tenant clients default permissions migration - Search for realm instance client named {0} (realm {1}) ....",
+                            multiTenantClient.getClientId(), clientRealm.getName());
+
+                    // find realm client instance (by clientId)
+                    ClientModel realmClientInstance = clientRealm.getClientByClientId(multiTenantClient.getClientId());
+
+                    if (realmClientInstance == null) {
+                        logger.infov("Multi-tenant clients default permissions migration - No multitenant client instance with name {0} found (realm {1})!",
+                                multiTenantClient.getClientId(), clientRealm.getName());
+                        continue;
+                    }
+
+                    logger.infov("Multi-tenant clients default permissions migration - Multi-tenant client client instance named {0} (realm {1}) found!",
+                            multiTenantClient.getClientId(), clientRealm.getName());
+
+                    // find resource-server entity for this client
+                    ResourceServerStore resourceServerStore = authorization.getStoreFactory().getResourceServerStore();
+
+                    ResourceServer existingResourceServer = resourceServerStore.findById(realmClientInstance.getId());
+
+                    if (existingResourceServer == null) {
+                        logger.infov("Multi-tenant clients default permissions migration - No existing Resource Server entity for Multi-tenant client instance with name {0} found in realm {1}!",
+                                multiTenantClient.getClientId(), clientRealm.getName());
+                        continue;
+                    }
+
+                    // check if Default Permissions are missing:
+                    String defaultPermissionPolicyName = "Default Permission";
+
+                    PolicyStore policyStore = authorization.getStoreFactory().getPolicyStore();
+
+                    // validate already existing:
+                    Policy existingDefaultPermission = policyStore.findByName(defaultPermissionPolicyName, existingResourceServer.getId());
+
+                    if (existingDefaultPermission != null) {
+                        logger.infov("Multi-tenant clients default permissions migration - Existing 'Default Permission' policy found for Multi-tenant client instance with name {0} in realm: {1}! No need for migration!",
+                                multiTenantClient.getClientId(), clientRealm.getName());
+                        continue;
+                    }
+
+                    logger.infov("Multi-tenant clients default permissions migration - MIGRATION STARTING for Multi-tenant client instance with name {0} (realm: {1})!",
+                            multiTenantClient.getClientId(), clientRealm.getName());
+
+                    ResourceServerDefaultPermissionCreator resourceServerDefaultPermissionCreator
+                            = new ResourceServerDefaultPermissionCreator(session, authorization, existingResourceServer);
+
+                    resourceServerDefaultPermissionCreator.create(realmClientInstance);
+
+                    logger.infov("Multi-tenant clients default permissions migration - ENDED for Multi-tenant client instance with name {0} in realm: {1}!",
+                            multiTenantClient.getClientId(), clientRealm.getName());
+                }
+            }
+            logger.infov("Multi-tenant clients default permissions migration - SUCCESS!");
+            session.getTransactionManager().commit();
+        } catch (Exception e) {
+            logger.infov("Multi-tenant clients default permissions migration - Failed! :: {0}", e.getMessage());
+            session.getTransactionManager().rollback();
+            throw e;
+        } finally {
+            session.close();
+        }
+    }
+
+    protected void embraceMigration03() {
+        logger.infov("Embrace data migration script 03 ...");
+
+        KeycloakSession sessionA = sessionFactory.create();
+
+        // 03a. Multi-tenant Clients Specialized Client Scopes
+        logger.infov("03a. Multi-tenant Clients Specialized Client Scopes Migration-A - add missing master scopes!");
+        try {
+            sessionA.getTransactionManager().begin();
+
+            // check if master exists (first start!)
+            RealmModel masterRealm = sessionA.realms().getRealm(Config.getAdminRealm());
+            if (null == masterRealm) return; //ths is first app start against empty DB => no migration needed
+
+            // a. For every client realm create specialized multi-tenant client scope:
+            List<RealmModel> realms = sessionA.realms().getRealms();
+
+            // foreach user realm, foreach mt-client instance
+            for (RealmModel clientRealm : realms) {
+
+                // exclude "master"
+                if (clientRealm.getName().equals(Config.getAdminRealm()))
+                    continue;
+
+                logger.infov("Multi-tenant clients specialized client scopes migration - Changing the scope to client realm {0} ....", clientRealm.getName());
+
+                String realmRelatedScopeName = EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX + clientRealm.getName();
+
+                logger.infov("Multi-tenant clients specialized client scopes migration - Searching for master scope {0} ....", realmRelatedScopeName);
+
+                List<ClientScopeModel> masterClientScopesCurrent = masterRealm.getClientScopes();
+                if (masterClientScopesCurrent.stream().map((ClientScopeModel model) -> model.getName()).collect(Collectors.toList()).contains(realmRelatedScopeName)) {
+                    logger.infov("Multi-tenant clients specialized client scopes migration - realm specific client scope {0} found in {1} realm. Move on to another client realm ...", realmRelatedScopeName, clientRealm.getName());
+                    continue;
+                }
+
+                logger.infov("Multi-tenant clients specialized client scopes migration - realm related master scope {0} not found. Creating!!", realmRelatedScopeName);
+
+                ClientScopeModel newScope = RealmManager.setupMultiTenantClientSpecificClientScope(clientRealm, masterRealm);
+
+                if (newScope != null) {
+                    logger.infov("Multi-tenant clients specialized client scopes migration - realm related master scope {0} created successfully", realmRelatedScopeName);
+                }
+            }
+            logger.infov("Multi-tenant clients specialized client scopes migration-a - SUCCESS!");
+            sessionA.getTransactionManager().commit();
+        } catch (Exception e) {
+            logger.infov("Multi-tenant clients specialized client scopes migration-a - Failed! :: {0}", e.getMessage());
+            sessionA.getTransactionManager().rollback();
+            throw e;
+        } finally {
+            sessionA.close();
+        }
+
+        KeycloakSession sessionB = sessionFactory.create();
+
+        logger.infov("03b. Multi-tenant Clients Specialized Client Scopes Migration-B - update existing multi-tenant clients!");
+        try {
+            sessionB.getTransactionManager().begin();
+
+            // check if master exists (first start!)
+            RealmModel masterRealm = sessionB.realms().getRealm(Config.getAdminRealm());
+            if (null == masterRealm) return; //ths is first app start against empty DB => no migration needed
+
+            // b. search for multi-tenant clients and update they're optional client scopes
+            logger.infov("Multi-tenant clients specialized client scopes migration - Searching for existing multi-tenant clients ...");
+            List<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().getClientsByAttribute(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+
+            if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
+                logger.infov("Multi-tenant clients specialized client scopes migration - None of existing multi-tenant clients found. End migration!");
+                return; // no multi-tenant clients found
+            }
+
+            // find all master mt-client system client scopes
+            List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
+
+            // foreach existing mt-client
+            for (ClientModel multiTenantClient : multiTenantMasterClients) {
+                logger.infov("Multi-tenant clients specialized client scopes migration - Adding optional client scopes to mt-client with name {0} ....", multiTenantClient.getClientId());
+
+                // set client scopes
+                for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
+                {
+                    multiTenantClient.addClientScope(ipuRealmScope, false);
+                }
+
+                logger.infov("Multi-tenant clients specialized client scopes migration - Done for Multi-tenant client with name {0}!", multiTenantClient.getClientId());
+            }
+
+            logger.infov("Multi-tenant clients specialized client scopes migration-b - SUCCESS!");
+            sessionB.getTransactionManager().commit();
+        } catch (Exception e) {
+            logger.infov("Multi-tenant clients specialized client scopes migration-b - Failed! :: {0}", e.getMessage());
+            sessionB.getTransactionManager().rollback();
+            throw e;
+        } finally {
+            sessionB.close();
+        }
     }
 
     protected void loadConfig() {

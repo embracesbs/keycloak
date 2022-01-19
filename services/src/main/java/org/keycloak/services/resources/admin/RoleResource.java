@@ -35,6 +35,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang.ArrayUtils;
+import org.keycloak.Config;
+import java.util.stream.Stream;
+import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;
+import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_REALMS_ATTRIBUTE;
+
 /**
  * @resource Roles
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -123,5 +129,81 @@ public abstract class RoleResource {
         }
 
         adminEvent.operation(OperationType.DELETE).resourcePath(uriInfo).representation(roles).success();
+    }
+
+    protected void setupReadonlyRoleRegistrations(KeycloakSession session, RoleModel role, RoleRepresentation rep) {
+        RealmModel adminRealm = session.realms().getRealm(Config.getAdminRealm());
+
+        List<RealmModel> allRealms = session.realms().getRealms();
+
+        String[] viewRoles = Arrays.stream(AdminRoles.ALL_REALM_ROLES)
+                .filter(r -> r.startsWith("view-"))
+                .toArray(String[]::new);
+
+        String[] readOnlyRoles = Stream.of(viewRoles, AdminRoles.ALL_QUERY_ROLES)
+                .flatMap(Stream::of)
+                .toArray(String[]::new);
+
+        String[] explicitRealmsFilter = getReadOnlyRoleRealmsFilter(rep);
+        //boolean doFilter = explicitRealmsFilter.length > 0;
+        boolean doFilter = Boolean.FALSE; //disabling realm filter-out functionality!
+
+        for (RealmModel realmElement : allRealms) {
+            // exclude 'master'
+            if (realmElement.getName().equals(Config.getAdminRealm()))
+                continue;
+
+            // filter out if filter provided
+            if (doFilter && Arrays.stream(explicitRealmsFilter).noneMatch(r -> r.equals(realmElement.getName()))) {
+                // filter-out this realm !
+                continue;
+            }
+
+            // find master admin apps by name "{realmName}-realm"
+            String masterAdminAppName = realmElement.getName() + "-realm";
+            ClientModel masterAdminApp = adminRealm.getClientByClientId(masterAdminAppName);
+
+            for (String roleName : readOnlyRoles) {
+                // find the appropriate role from master admin app
+                RoleModel foundRole = masterAdminApp.getRole(roleName);
+
+                if (foundRole == null) {
+                    //logger.errorf("read-only role registration -> master app role with name '%s' not found in app '%s'!", roleName, masterAdminAppName);
+                    continue;
+                }
+
+                // and composite to the readonly role
+                role.addCompositeRole(foundRole);
+            }
+        }
+    }
+
+    protected boolean isReadOnly(RoleRepresentation rep) {
+        Map<String, List<String>> attributes = rep.getAttributes();
+        if (attributes == null || !attributes.containsKey(READ_ONLY_ROLE_ATTRIBUTE)) return Boolean.FALSE;
+
+        List<String> readonlyAttr = attributes.get(READ_ONLY_ROLE_ATTRIBUTE);
+        if (readonlyAttr == null) return Boolean.FALSE;
+
+        String[] readOnlyRoleAttribute = readonlyAttr.toArray(new String[0]);
+        if (ArrayUtils.isNotEmpty(readOnlyRoleAttribute)) {
+            return Boolean.parseBoolean(readOnlyRoleAttribute[0]);
+        }
+        return Boolean.FALSE;
+    }
+
+    protected String[] getReadOnlyRoleRealmsFilter(RoleRepresentation rep) {
+        Map<String, List<String>> attributes = rep.getAttributes();
+        if (attributes == null || !attributes.containsKey(READ_ONLY_ROLE_REALMS_ATTRIBUTE))
+            return ArrayUtils.EMPTY_STRING_ARRAY;
+
+        List<String> filterRealms = attributes.get(READ_ONLY_ROLE_REALMS_ATTRIBUTE);
+        if (filterRealms == null) return ArrayUtils.EMPTY_STRING_ARRAY;
+
+        String[] readOnlyRoleRealms = filterRealms.toArray(new String[0]);
+        if (ArrayUtils.isNotEmpty(readOnlyRoleRealms)) {
+            return readOnlyRoleRealms;
+        }
+        return ArrayUtils.EMPTY_STRING_ARRAY;
     }
 }
