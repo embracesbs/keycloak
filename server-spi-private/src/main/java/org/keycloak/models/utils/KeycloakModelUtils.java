@@ -704,6 +704,11 @@ public final class KeycloakModelUtils {
                 .orElseGet(() -> realm.getClientByClientId(clientScopeName));
     }
 
+    public static Stream<ClientScopeModel> findClientScopesByNamePrefix(RealmModel realm, String clientScopeNamePrefix) {
+        return realm.getClientScopesStream()
+                .filter(clientScope -> clientScope.getName().startsWith(clientScopeNamePrefix));
+    }
+
     /**
      * Lookup clientScope OR client by id. Method is useful if you know just ID, but you don't know
      * if underlying model is clientScope or client

@@ -537,6 +537,41 @@ public interface UserQueryProvider {
     }
 
     /**
+     * Search for users that have a specific attribute with a specific value.
+     * Implementations do not have to search in UserFederatedStorageProvider
+     * as this is done automatically.
+     *
+     * @see org.keycloak.storage.federated.UserFederatedStorageProvider
+     *
+     *
+     * @param attrName
+     * @param attrValue
+     * @param realm
+     * @param firstResult
+     * @param maxResults
+     * @return
+     */
+    @Deprecated
+    List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults);
+    
+    /**
+     * Search for users that have a specific attribute with a specific value.
+     * Implementations do not have to search in UserFederatedStorageProvider
+     * as this is done automatically.
+     *
+     * @param realm a reference to the realm.
+     * @param attrName the attribute name.
+     * @param attrValue the attribute value.
+     * @param firstResult
+     * @param maxResults
+     * @return a non-null {@link Stream} of users that match the search criteria.
+     */
+    default Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
+        List<UserModel> value = this.searchForUserByUserAttributePaged(attrName, attrValue, realm);
+        return value != null ? value.stream() : Stream.empty();
+    }
+
+    /**
      * The {@link Streams} interface makes all collection-based methods in {@link UserQueryProvider} default by
      * providing implementations that delegate to the {@link Stream}-based variants instead of the other way around.
      * <p/>
@@ -670,5 +705,15 @@ public interface UserQueryProvider {
 
         @Override
         Stream<UserModel> searchForUserByUserAttributeStream(RealmModel realm, String attrName, String attrValue);
+        
+        @Override           
+        default List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+            return this.searchForUserByUserAttributeStreamPaged(realm, attrName, attrValue, firstResult, maxResults).collect(Collectors.toList());
+        }
+
+        @Override
+        Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults);
     }
+
+    
 }

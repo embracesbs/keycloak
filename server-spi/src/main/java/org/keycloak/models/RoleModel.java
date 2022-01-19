@@ -18,6 +18,7 @@
 package org.keycloak.models;
 
 import org.keycloak.storage.SearchableModelField;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,6 +30,10 @@ import java.util.stream.Stream;
  * @version $Revision: 1 $
  */
 public interface RoleModel {
+
+    // READ-ONLY ROLE RELATED ATTRIBUTES
+    String READ_ONLY_ROLE_ATTRIBUTE = "read.only";
+    String READ_ONLY_ROLE_REALMS_ATTRIBUTE = "read.only.explicit.realms";
 
     public static class SearchableFields {
         public static final SearchableModelField<RoleModel> ID                  = new SearchableModelField<>("id", String.class);
@@ -105,4 +110,22 @@ public interface RoleModel {
     Stream<String> getAttributeStream(String name);
 
     Map<String, List<String>> getAttributes();
+
+    default boolean isReadOnly() {
+        String readOnlyRoleAttribute = getFirstAttribute(READ_ONLY_ROLE_ATTRIBUTE);
+        if (readOnlyRoleAttribute != null) {
+            return Boolean.parseBoolean(readOnlyRoleAttribute);
+        }
+        return Boolean.FALSE;
+    }
+
+    default String[] getReadOnlyRoleRealms() {
+        List<String> multiTenantAttributes = getAttribute(READ_ONLY_ROLE_REALMS_ATTRIBUTE);
+        if (multiTenantAttributes != null && multiTenantAttributes.size() > 0) {
+            String[] splitter = multiTenantAttributes.get(0).split(",");
+            Arrays.stream(splitter).map(String::trim).toArray(unused -> splitter);
+            return splitter;
+        }
+        return new String[0];
+    }
 }

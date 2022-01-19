@@ -55,6 +55,8 @@ import java.util.LinkedList;
         @NamedQuery(name="getRealmUserCountExcludeServiceAccount", query="select count(u) from UserEntity u where u.realmId = :realmId and (u.serviceAccountClientLink is null)"),
         @NamedQuery(name="getRealmUsersByAttributeNameAndValue", query="select u from UserEntity u join u.attributes attr " +
                 "where u.realmId = :realmId and attr.name = :name and attr.value = :value"),
+        @NamedQuery(name="getRealmUsersByAttributeNameAndValueOrdered", query="select u from UserEntity u join u.attributes attr " +
+                "where u.realmId = :realmId and attr.name = :name and attr.value = :value order by u.username"),
         @NamedQuery(name="deleteUsersByRealm", query="delete from UserEntity u where u.realmId = :realmId"),
         @NamedQuery(name="deleteUsersByRealmAndLink", query="delete from UserEntity u where u.realmId = :realmId and u.federationLink=:link"),
         @NamedQuery(name="unlinkUsers", query="update UserEntity u set u.federationLink = null where u.realmId = :realmId and u.federationLink=:link")

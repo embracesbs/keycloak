@@ -639,6 +639,7 @@ public class ModelToRepresentation {
 
             if (resourceServer != null) {
                 rep.setAuthorizationServicesEnabled(true);
+                rep.setAuthorizationSettings(toRepresentation(resourceServer, clientModel));
             }
         }
 
@@ -874,7 +875,7 @@ public class ModelToRepresentation {
         
         if (allFields) {
             representation.setResourcesData(policy.getResources().stream().map(
-                    resource -> toRepresentation(resource, resource.getResourceServer(), authorization, true)).collect(Collectors.toSet()));
+                    resource -> toRepresentation(resource, resource.getResourceServer(), authorization)).collect(Collectors.toSet()));
             representation.setScopesData(policy.getScopes().stream().map(
                     resource -> toRepresentation(resource)).collect(Collectors.toSet()));
         }

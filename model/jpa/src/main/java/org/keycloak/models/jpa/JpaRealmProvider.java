@@ -741,6 +741,11 @@ public class JpaRealmProvider implements RealmProvider, ClientProvider, ClientSc
                 .map(id -> session.clients().getClientById(realm, id));
     }
 
+    public Stream<ClientModel> getClientsByAttributeStream(RealmModel realm, String attributeName, String attributeValue) {
+        Map<String, String> attributes = Collections.singletonMap(attributeName, attributeValue);
+        return this.searchClientsByAttributes(realm, attributes, 0, 100)
+    }
+
     @Override
     public void removeClients(RealmModel realm) {
         TypedQuery<String> query = em.createNamedQuery("getClientIdsByRealm", String.class);

@@ -64,7 +64,7 @@ import org.keycloak.representations.idm.RealmRepresentation;
  * @version $Revision: 1 $
  */
 public class MigrationModelManager {
-    private static Logger logger = Logger.getLogger(MigrationModelManager.class);
+    private static final Logger logger = Logger.getLogger(MigrationModelManager.class);
 
     private static final Migration[] migrations = {
             new MigrateTo1_2_0(),

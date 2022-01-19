@@ -106,4 +106,6 @@ public interface ClientLookupProvider {
      * @return map where key is the name of the clientScope, value is particular clientScope. Returns empty map if no scopes linked (never returns null).
      */
     Map<String, ClientScopeModel> getClientScopes(RealmModel realm, ClientModel client, boolean defaultScopes);
+
+    Stream<ClientModel> getClientsByAttributeStream(RealmModel realm, String attributeName, String attributeValue);
 }
