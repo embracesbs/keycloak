@@ -58,6 +58,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import java.util.Arrays;
 import org.apache.commons.lang.ArrayUtils;
 import org.jboss.logging.Logger;
 import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;

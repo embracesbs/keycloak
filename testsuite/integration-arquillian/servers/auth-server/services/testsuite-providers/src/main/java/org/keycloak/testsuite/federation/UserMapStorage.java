@@ -366,6 +366,17 @@ public class UserMapStorage implements UserLookupProvider.Streams, UserStoragePr
     }
 
     @Override
+    public Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
+        if (isImportEnabled()) {
+            return session.userLocalStorage().searchForUserByUserAttributeStreamPaged(realm, attrName, attrValue, firstResult, maxResults);
+        } else {
+            return session.userFederatedStorage()
+                    .getUsersByUserAttributeStream/*Paged*/(realm, attrName, attrValue/*, firstResult, maxResults*/)
+                    .map(userName -> createUser(realm, userName));
+        }
+    }
+
+    @Override
     public Stream<GroupModel> getGroupsStream(RealmModel realm, String userId) {
         Set<String> set = userGroups.get(getUserIdInMap(realm, userId));
         if (set == null) {

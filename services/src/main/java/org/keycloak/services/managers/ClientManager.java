@@ -24,6 +24,7 @@ import org.keycloak.authentication.ClientAuthenticatorFactory;
 import org.keycloak.common.constants.ServiceAccountConstants;
 import org.keycloak.common.util.Time;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.ProtocolMapperModel;
 import org.keycloak.models.RealmModel;
@@ -31,6 +32,7 @@ import org.keycloak.models.UserManager;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserSessionProvider;
 import org.keycloak.models.utils.RepresentationToModel;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.LoginProtocolFactory;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
@@ -62,6 +64,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.Arrays;
+import java.io.ByteArrayOutputStream;
+import java.io.ObjectOutputStream;
+import java.io.ByteArrayInputStream;
+import java.io.ObjectInputStream;
+import java.io.Serializable;
+import org.keycloak.models.AdminRoles;
+import org.keycloak.models.RoleModel;
+import java.util.stream.Stream;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -164,7 +175,7 @@ public class ClientManager {
 
             realmClientRep.setDescription(String.format("%s %s", clientRepresentation.getDescription(), multiTenantInstanceDescriptionSuffix));
 
-            ClientModel realmInstanceClient = createClient(session, realmElement, realmClientRep, true);
+            ClientModel realmInstanceClient = createClient(session, realmElement, realmClientRep); // , true);
 
             // create mandatory resource server service account:
             UserModel serviceAccount = session.users().getServiceAccount(realmInstanceClient);
@@ -236,7 +247,7 @@ public class ClientManager {
         // scoped jwt roles support
         // in master realm should have set client scopes for each realm 'identity-provider-user-[realm_name]'
         // collect the all specialized client-scope by prefix and add them as optional scope to mt-client
-        List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(adminRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
+        Stream<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(adminRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
         for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
         {
             mtClient.addClientScope(ipuRealmScope, false);
@@ -381,7 +392,7 @@ public class ClientManager {
         // scoped jwt roles support
         // in master realm should have set client scopes for each realm 'identity-provider-user-[realm_name]'
         // collect the all specialized client-scope by prefix and add them as optional scope to mt-client
-        List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(adminRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
+        Stream<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(adminRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
         for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
         {
             mtClientCurrent.addClientScope(ipuRealmScope, false);

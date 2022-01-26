@@ -35,6 +35,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import java.util.Arrays;
+import org.keycloak.models.KeycloakSession;
+import org.keycloak.models.AdminRoles;
 import org.apache.commons.lang.ArrayUtils;
 import org.keycloak.Config;
 import java.util.stream.Stream;

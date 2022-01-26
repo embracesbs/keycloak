@@ -377,7 +377,7 @@ public class BackwardsCompatibilityUserStorage implements UserLookupProvider, Us
     }
 
     @Override
-    public List<UserModel> searchForUserByUserAttributePaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+    public List<UserModel> searchForUserByUserAttributeStreamPaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
         // Assume that this is not supported
         return Collections.emptyList();
     }

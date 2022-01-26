@@ -471,7 +471,7 @@ public class UserStorageManager extends AbstractStorageManager<UserStorageProvid
     }
     
     @Override
-    public Stream<UserModel> searchForUserByUserAttributeStreamPaged(String attrName, String attrValue, RealmModel realm, int firstResult, int maxResults) {
+    public Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
         Stream<UserModel> results = query((provider, firstResultInQuery, maxResultsInQuery) -> {
             if (provider instanceof UserQueryProvider) {
                 return paginatedStream(((UserQueryProvider)provider).searchForUserByUserAttributeStream(realm, attrName, attrValue), firstResultInQuery, maxResultsInQuery);

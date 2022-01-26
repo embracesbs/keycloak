@@ -63,6 +63,8 @@ import java.util.stream.Stream;
 import static java.lang.Boolean.TRUE;
 import static org.keycloak.utils.StreamsUtil.paginatedStream;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.keycloak.Config;
 import java.io.Serializable;
 import static java.lang.Boolean.FALSE;

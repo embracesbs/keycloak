@@ -24,6 +24,7 @@ import org.keycloak.models.AccountRoles;
 import org.keycloak.models.AdminRoles;
 import org.keycloak.models.BrowserSecurityHeaders;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.Constants;
 import org.keycloak.models.ImpersonationConstants;
 import org.keycloak.models.KeycloakSession;
@@ -39,6 +40,7 @@ import org.keycloak.models.utils.DefaultClientScopes;
 import org.keycloak.models.utils.DefaultRequiredActions;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.RepresentationToModel;
+import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.protocol.ProtocolMapperUtils;
 import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
@@ -74,6 +76,7 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import static java.lang.Boolean.TRUE;
+
 
 /**
  * Per request object
@@ -775,7 +778,8 @@ public class RealmManager {
         ClientScopeModel mtSpecScope = setupMultiTenantClientSpecificClientScope(realm, adminRealm);
 
         // fetch multi-tenant clients from master
-        List<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttribute(adminRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+        // TODO: handle stream
+        Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(adminRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
         if (multiTenantMasterClients != null && !multiTenantMasterClients.isEmpty()) {
             for (ClientModel multiTenantClient : multiTenantMasterClients) {
@@ -807,7 +811,7 @@ public class RealmManager {
                     mtClientRepLocal.setAuthorizationServicesEnabled(TRUE);
                 }
 
-                ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal, true);
+                ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal); // , true);
 
                 // create mandatory resource-server client service account:
                 UserModel serviceAccount = session.users().getServiceAccount(realmClient);

@@ -112,6 +112,11 @@ public class HardcodedClientStorageProvider implements ClientStorageProvider, Cl
             }
     }
 
+    @Override
+    public Stream<ClientModel> getClientsByAttribute(RealmModel realm, String attributeName, String attributeValue) { 
+        return Collections.EMPTY_LIST; 
+    }
+
     public class ClientAdapter extends AbstractReadOnlyClientStorageAdapter {
 
         public ClientAdapter(RealmModel realm) {

@@ -164,7 +164,7 @@ public class ClientStorageManager implements ClientProvider {
     }
 
     @Override
-    public Stream<ClientModel> getClientsByAttribute(RealmModel realm, String attributeName, String attributeValue) {
+    public Stream<ClientModel> getClientsByAttributeStream(RealmModel realm, String attributeName, String attributeValue) {
         Map<String, String> attributes = Collections.singletonMap(attributeName, attributeValue);
         return searchClientsByAttributes(realm, attributes, 0, 100);
     }

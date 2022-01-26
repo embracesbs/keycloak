@@ -567,7 +567,7 @@ public interface UserQueryProvider {
      * @return a non-null {@link Stream} of users that match the search criteria.
      */
     default Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
-        List<UserModel> value = this.searchForUserByUserAttributePaged(attrName, attrValue, realm);
+        List<UserModel> value = this.searchForUserByUserAttributePaged(attrName, attrValue, realm, 0, 9999);
         return value != null ? value.stream() : Stream.empty();
     }
 

@@ -73,6 +73,10 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.keycloak.models.ClientModel;
+import org.keycloak.models.ClientScopeModel;
+import org.keycloak.models.RoleModel;
+import org.keycloak.models.AdminRoles;
 import org.keycloak.authorization.AuthorizationProvider;
 import org.keycloak.authorization.model.Policy;
 import org.keycloak.authorization.model.ResourceServer;
@@ -83,6 +87,7 @@ import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
 import java.util.stream.Collectors;
 import static java.lang.Boolean.TRUE;
 
+import java.util.stream.Stream;
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
@@ -141,7 +146,7 @@ public class KeycloakApplication extends Application {
             DBLockProvider dbLock = dbLockManager.getDBLock();
             dbLock.waitForLock(DBLockProvider.Namespace.KEYCLOAK_BOOT);
             try {
-                exportImportManager[0] = migrateAndBootstrap();
+                exportImportManager[0] = bootstrap();
             } finally {
                 dbLock.releaseLock();
             }
@@ -154,7 +159,6 @@ public class KeycloakApplication extends Application {
         KeycloakModelUtils.runJobInTransaction(sessionFactory, session -> {
             boolean shouldBootstrapAdmin = new ApplianceBootstrap(session).isNoMasterUser();
             BOOTSTRAP_ADMIN_USER.set(shouldBootstrapAdmin);
-            }
         });
         
         sessionFactory.publish(new PostMigrationEvent());
@@ -261,7 +265,7 @@ public class KeycloakApplication extends Application {
 
             // search for multitenant clients
             logger.infov("Multi-tenancy migration - Searching for existing multi-tenant clients!");
-            List<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttribute(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+            Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
             if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
                 logger.infov("Multi-tenancy migration - None existing multitenant clients found!");
@@ -306,7 +310,7 @@ public class KeycloakApplication extends Application {
 
             // search for multitenant clients
             logger.infov("Multi-tenant clients default permissions migration - Searching for existing multitenant clients ...");
-            List<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttribute(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+            Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
             if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
                 logger.infov("Multi-tenant clients default permissions migration - None of existing multitenant clients found. Nothing to migrate!");
@@ -459,7 +463,7 @@ public class KeycloakApplication extends Application {
 
             // b. search for multi-tenant clients and update they're optional client scopes
             logger.infov("Multi-tenant clients specialized client scopes migration - Searching for existing multi-tenant clients ...");
-            List<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().getClientsByAttribute(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+            Stream<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
             if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
                 logger.infov("Multi-tenant clients specialized client scopes migration - None of existing multi-tenant clients found. End migration!");
@@ -467,7 +471,7 @@ public class KeycloakApplication extends Application {
             }
 
             // find all master mt-client system client scopes
-            List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
+            Stream<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
 
             // foreach existing mt-client
             for (ClientModel multiTenantClient : multiTenantMasterClients) {
