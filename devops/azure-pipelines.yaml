@@ -1,5 +1,5 @@
 trigger:
-- release-embrace
+- releases/embrace/14.0.0
 
 resources:
   repositories:
@@ -7,15 +7,15 @@ resources:
     type: github
     endpoint: GitHubEmbraceSBSKeycloak
     name: embracesbs/keycloak-containers
-    ref: refs/heads/release-embrace
+    ref: refs/heads/releases/embrace/14.0.0
 
 variables:
 - name: Version.Major
-  value: 10
+  value: 14
 - name: Version.Minor
   value: 0
 - name: Version.Patch
-  value: 2
+  value: 0
 - name: Version.Tag
   value: $(Version.Major).$(Version.Minor).$(Version.Patch)
 - name: Version.Revision
