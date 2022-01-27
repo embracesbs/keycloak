@@ -267,13 +267,13 @@ public class KeycloakApplication extends Application {
             logger.infov("Multi-tenancy migration - Searching for existing multi-tenant clients!");
             Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
+            if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
                 logger.infov("Multi-tenancy migration - None existing multitenant clients found!");
                 return; // no multitenant clients found
             }
 
             // foreach existing mt-client
-            for (ClientModel multiTenantClient : multiTenantMasterClients) {
+            multiTenantMasterClients.forEach(multiTenantClient -> {
                 logger.infov("Multi-tenancy migration - Multi-tenant client found: {0}! Migrating....", multiTenantClient.getClientId());
                 // find service account user for this mt-client
                 UserModel saUser = session.users().getServiceAccount(multiTenantClient);
@@ -281,7 +281,7 @@ public class KeycloakApplication extends Application {
                 logger.infov("Multi-tenancy migration - Granting special role {0} to client {1}....", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS, multiTenantClient.getClientId());
                 saUser.grantRole(queryClientIdsRole);
                 logger.infov("Multi-tenancy migration - Multi-tenant client {0} migration success....", multiTenantClient.getClientId());
-            }
+            });
 
             logger.infov("Multi-tenancy related migration - SUCCESS!");
             session.getTransactionManager().commit();
@@ -312,7 +312,7 @@ public class KeycloakApplication extends Application {
             logger.infov("Multi-tenant clients default permissions migration - Searching for existing multitenant clients ...");
             Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
+            if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
                 logger.infov("Multi-tenant clients default permissions migration - None of existing multitenant clients found. Nothing to migrate!");
                 return; // no multitenant clients found
             }
@@ -333,7 +333,7 @@ public class KeycloakApplication extends Application {
                 logger.infov("Multi-tenant clients default permissions migration - Changing the scope to realm {0} ....", clientRealm.getName());
 
                 // foreach existing mt-client
-                for (ClientModel multiTenantClient : multiTenantMasterClients) {
+                multiTenantMasterClients.forEach(multiTenantClient -> {
                     logger.infov("Multi-tenant clients default permissions migration - Search for realm instance client named {0} (realm {1}) ....",
                             multiTenantClient.getClientId(), clientRealm.getName());
 
@@ -343,7 +343,7 @@ public class KeycloakApplication extends Application {
                     if (realmClientInstance == null) {
                         logger.infov("Multi-tenant clients default permissions migration - No multitenant client instance with name {0} found (realm {1})!",
                                 multiTenantClient.getClientId(), clientRealm.getName());
-                        continue;
+                        return;
                     }
 
                     logger.infov("Multi-tenant clients default permissions migration - Multi-tenant client client instance named {0} (realm {1}) found!",
@@ -357,7 +357,7 @@ public class KeycloakApplication extends Application {
                     if (existingResourceServer == null) {
                         logger.infov("Multi-tenant clients default permissions migration - No existing Resource Server entity for Multi-tenant client instance with name {0} found in realm {1}!",
                                 multiTenantClient.getClientId(), clientRealm.getName());
-                        continue;
+                        return;
                     }
 
                     // check if Default Permissions are missing:
@@ -371,7 +371,7 @@ public class KeycloakApplication extends Application {
                     if (existingDefaultPermission != null) {
                         logger.infov("Multi-tenant clients default permissions migration - Existing 'Default Permission' policy found for Multi-tenant client instance with name {0} in realm: {1}! No need for migration!",
                                 multiTenantClient.getClientId(), clientRealm.getName());
-                        continue;
+                        return;
                     }
 
                     logger.infov("Multi-tenant clients default permissions migration - MIGRATION STARTING for Multi-tenant client instance with name {0} (realm: {1})!",
@@ -384,7 +384,7 @@ public class KeycloakApplication extends Application {
 
                     logger.infov("Multi-tenant clients default permissions migration - ENDED for Multi-tenant client instance with name {0} in realm: {1}!",
                             multiTenantClient.getClientId(), clientRealm.getName());
-                }
+                });
             }
             logger.infov("Multi-tenant clients default permissions migration - SUCCESS!");
             session.getTransactionManager().commit();
@@ -465,7 +465,7 @@ public class KeycloakApplication extends Application {
             logger.infov("Multi-tenant clients specialized client scopes migration - Searching for existing multi-tenant clients ...");
             Stream<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.isEmpty()) {
+            if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
                 logger.infov("Multi-tenant clients specialized client scopes migration - None of existing multi-tenant clients found. End migration!");
                 return; // no multi-tenant clients found
             }
@@ -474,17 +474,16 @@ public class KeycloakApplication extends Application {
             Stream<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
 
             // foreach existing mt-client
-            for (ClientModel multiTenantClient : multiTenantMasterClients) {
+            multiTenantMasterClients.forEach(multiTenantClient -> {
                 logger.infov("Multi-tenant clients specialized client scopes migration - Adding optional client scopes to mt-client with name {0} ....", multiTenantClient.getClientId());
 
                 // set client scopes
-                for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
-                {
+                ipuRealmScopes.forEach(ipuRealmScope -> {
                     multiTenantClient.addClientScope(ipuRealmScope, false);
-                }
+                });
 
                 logger.infov("Multi-tenant clients specialized client scopes migration - Done for Multi-tenant client with name {0}!", multiTenantClient.getClientId());
-            }
+            });
 
             logger.infov("Multi-tenant clients specialized client scopes migration-b - SUCCESS!");
             sessionB.getTransactionManager().commit();

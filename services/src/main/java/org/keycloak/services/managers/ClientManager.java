@@ -248,10 +248,9 @@ public class ClientManager {
         // in master realm should have set client scopes for each realm 'identity-provider-user-[realm_name]'
         // collect the all specialized client-scope by prefix and add them as optional scope to mt-client
         Stream<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(adminRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
-        for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
-        {
-            mtClient.addClientScope(ipuRealmScope, false);
-        }
+        ipuRealmScopes.forEach(s -> {
+            mtClient.addClientScope(s, false);
+        });
 
         // update description on mt-client create
         mtClient.setDescription((clientRepresentation.getDescription() == null ? "" : clientRepresentation.getDescription() + " ") + multiTenantDescriptionSuffix);
@@ -393,10 +392,9 @@ public class ClientManager {
         // in master realm should have set client scopes for each realm 'identity-provider-user-[realm_name]'
         // collect the all specialized client-scope by prefix and add them as optional scope to mt-client
         Stream<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(adminRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
-        for (ClientScopeModel ipuRealmScope : ipuRealmScopes)
-        {
-            mtClientCurrent.addClientScope(ipuRealmScope, false);
-        }
+        ipuRealmScopes.forEach(s -> {
+            mtClientCurrent.addClientScope(s, false);
+        });
 
         // update description in representation if needed
         String repDescription = updateClientRepresentation.getDescription();

@@ -781,8 +781,9 @@ public class RealmManager {
         // TODO: handle stream
         Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(adminRealm, ClientModel.MULTI_TENANT, TRUE.toString());
 
-        if (multiTenantMasterClients != null && !multiTenantMasterClients.isEmpty()) {
-            for (ClientModel multiTenantClient : multiTenantMasterClients) {
+        if (multiTenantMasterClients != null && multiTenantMasterClients.count() > 0) {
+
+            multiTenantMasterClients.forEach(multiTenantClient -> {
 
                 ClientRepresentation adminMtClientRepresentation = ModelToRepresentation.toRepresentation(multiTenantClient, session);
 
@@ -864,7 +865,7 @@ public class RealmManager {
 
                 // add created specialised scope to  the current mt-client
                 multiTenantClient.addClientScope(mtSpecScope, false);
-            }
+            });
         }
     }
 
