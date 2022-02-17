@@ -733,6 +733,18 @@ public class MapUserProvider<K> implements UserProvider.Streams, UserCredentialS
     }
 
     @Override
+    public Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
+        LOG.tracef("searchForUserByUserAttributeStreamPaged(%s, %s, %s, %s, %s)%s", realm, attrName, attrValue, firstResult, maxResults, getShortStackTrace());
+        ModelCriteriaBuilder<UserModel> mcb = userStore.createCriteriaBuilder()
+                .compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
+                .compare(SearchableFields.ATTRIBUTE, Operator.EQ, attrName, attrValue);
+
+        return paginatedStream(tx.read(mcb)
+                .sorted(MapUserEntity.COMPARE_BY_USERNAME), firstResult, maxResults)
+                .map(entityToAdapterFunc(realm));
+    }
+
+    @Override
     public UserModel addUser(RealmModel realm, String username) {
         return addUser(realm, null, username.toLowerCase(), true, true);
     }

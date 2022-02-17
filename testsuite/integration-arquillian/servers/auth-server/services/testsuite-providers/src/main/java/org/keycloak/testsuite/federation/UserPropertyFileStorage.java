@@ -241,8 +241,8 @@ public class UserPropertyFileStorage implements UserLookupProvider.Streams, User
     }
 
     @Override
-    public List<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
-        return Collections.EMPTY_LIST;
+    public Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
+        return Stream.empty();
     }
 
     @Override

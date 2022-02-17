@@ -56,10 +56,8 @@ import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.services.clientregistration.policy.DefaultClientRegistrationPolicies;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+
 import org.keycloak.utils.ReservedCharValidator;
 
 import org.jboss.logging.Logger;
@@ -72,7 +70,7 @@ import org.keycloak.representations.idm.authorization.ResourceServerRepresentati
 import org.keycloak.services.clientregistration.policy.DefaultClientRegistrationPolicies;
 import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
 import org.keycloak.utils.ReservedCharValidator;
-import java.util.Arrays;
+
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import static java.lang.Boolean.TRUE;
@@ -779,7 +777,8 @@ public class RealmManager {
 
         // fetch multi-tenant clients from master
         // TODO: handle stream
-        Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(adminRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+        Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
+        Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(adminRealm, attributes, 0, 200);
 
         if (multiTenantMasterClients != null && multiTenantMasterClients.count() > 0) {
 
