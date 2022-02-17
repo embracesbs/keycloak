@@ -65,12 +65,7 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashSet;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.ServiceLoader;
-import java.util.Set;
-import java.util.StringTokenizer;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.keycloak.models.ClientModel;
@@ -265,7 +260,8 @@ public class KeycloakApplication extends Application {
 
             // search for multitenant clients
             logger.infov("Multi-tenancy migration - Searching for existing multi-tenant clients!");
-            Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+            Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
+            Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(masterRealm, attributes, 0, 200);
 
             if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
                 logger.infov("Multi-tenancy migration - None existing multitenant clients found!");
@@ -310,7 +306,8 @@ public class KeycloakApplication extends Application {
 
             // search for multitenant clients
             logger.infov("Multi-tenant clients default permissions migration - Searching for existing multitenant clients ...");
-            Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+            Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
+            Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(masterRealm, attributes, 0, 200);
 
             if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
                 logger.infov("Multi-tenant clients default permissions migration - None of existing multitenant clients found. Nothing to migrate!");
@@ -463,7 +460,7 @@ public class KeycloakApplication extends Application {
 
             // b. search for multi-tenant clients and update they're optional client scopes
             logger.infov("Multi-tenant clients specialized client scopes migration - Searching for existing multi-tenant clients ...");
-            Stream<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().getClientsByAttributeStream(masterRealm, ClientModel.MULTI_TENANT, TRUE.toString());
+            Stream<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().searchClientsByAttributes(masterRealm, Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString()), 0, 200);
 
             if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
                 logger.infov("Multi-tenant clients specialized client scopes migration - None of existing multi-tenant clients found. End migration!");

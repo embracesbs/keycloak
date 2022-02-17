@@ -163,12 +163,6 @@ public class ClientStorageManager implements ClientProvider {
         return query((p, f, m) -> p.searchClientsByAttributes(realm, attributes, f, m), realm, firstResult, maxResults);
     }
 
-    @Override
-    public Stream<ClientModel> getClientsByAttributeStream(RealmModel realm, String attributeName, String attributeValue) {
-        Map<String, String> attributes = Collections.singletonMap(attributeName, attributeValue);
-        return searchClientsByAttributes(realm, attributes, 0, 100);
-    }
-
     @FunctionalInterface
     interface PaginatedQuery {
         Stream<ClientModel> query(ClientLookupProvider provider, Integer firstResult, Integer maxResults);

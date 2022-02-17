@@ -287,7 +287,7 @@ public class FailableHardcodedStorageProvider implements UserStorageProvider, Us
     @Override
     public Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
         checkForceFail();
-        return Collections.EMPTY_LIST;
+        return Stream.empty();
     }
 
     @Override
