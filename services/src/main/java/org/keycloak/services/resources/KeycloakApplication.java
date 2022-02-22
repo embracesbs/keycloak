@@ -263,7 +263,7 @@ public class KeycloakApplication extends Application {
             Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
             List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(masterRealm, attributes, 0, 200).collect(Collectors.toList());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
+            if (multiTenantMasterClients == null || multiTenantMasterClients.size() == 0) {
                 logger.infov("Multi-tenancy migration - None existing multitenant clients found!");
                 return; // no multitenant clients found
             }
@@ -309,7 +309,7 @@ public class KeycloakApplication extends Application {
             Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
             List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(masterRealm, attributes, 0, 200).collect(Collectors.toList());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
+            if (multiTenantMasterClients == null || multiTenantMasterClients.size() == 0) {
                 logger.infov("Multi-tenant clients default permissions migration - None of existing multitenant clients found. Nothing to migrate!");
                 return; // no multitenant clients found
             }
@@ -462,7 +462,7 @@ public class KeycloakApplication extends Application {
             logger.infov("Multi-tenant clients specialized client scopes migration - Searching for existing multi-tenant clients ...");
             List<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().searchClientsByAttributes(masterRealm, Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString()), 0, 200).collect(Collectors.toList());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.count() == 0) {
+            if (multiTenantMasterClients == null || multiTenantMasterClients.size() == 0) {
                 logger.infov("Multi-tenant clients specialized client scopes migration - None of existing multi-tenant clients found. End migration!");
                 return; // no multi-tenant clients found
             }
