@@ -468,7 +468,7 @@ public class KeycloakApplication extends Application {
             }
 
             // find all master mt-client system client scopes
-            Stream<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX);
+            List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX).collect(Collectors.toList());
 
             // foreach existing mt-client
             multiTenantMasterClients.forEach(multiTenantClient -> {
