@@ -42,8 +42,11 @@ import org.keycloak.protocol.oidc.OIDCLoginProtocolService;
 import org.keycloak.protocol.oidc.TokenManager;
 import org.keycloak.protocol.oidc.endpoints.AuthorizationEndpoint;
 import org.keycloak.protocol.oidc.endpoints.TokenEndpoint;
+import org.keycloak.protocol.oidc.grants.device.clientpolicy.context.DeviceTokenRequestContext;
 import org.keycloak.protocol.oidc.grants.device.endpoints.DeviceEndpoint;
+import org.keycloak.protocol.oidc.utils.PkceUtils;
 import org.keycloak.services.CorsErrorResponseException;
+import org.keycloak.services.clientpolicy.ClientPolicyException;
 import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.UserSessionCrossDCManager;
 import org.keycloak.services.resources.Cors;
@@ -121,7 +124,7 @@ public class DeviceGrantType {
         String verifiedUserCode = authSession.getClientNote(DeviceGrantType.OAUTH2_DEVICE_VERIFIED_USER_CODE);
         String userSessionId = clientSession.getUserSession().getId();
         OAuth2DeviceTokenStoreProvider store = session.getProvider(OAuth2DeviceTokenStoreProvider.class);
-        if (!store.approve(realm, verifiedUserCode, userSessionId)) {
+        if (!store.approve(realm, verifiedUserCode, userSessionId, null)) {
             // Already expired and removed in the store
             return Response.status(302).location(
                     uriBuilder.queryParam(OAuth2Constants.ERROR, OAuthErrorException.EXPIRED_TOKEN)
@@ -210,6 +213,18 @@ public class DeviceGrantType {
                 "The authorization request is still pending", Response.Status.BAD_REQUEST);
         }
 
+        // https://tools.ietf.org/html/rfc7636#section-4.6
+        String codeVerifier = formParams.getFirst(OAuth2Constants.CODE_VERIFIER);
+        String codeChallenge = deviceCodeModel.getCodeChallenge();
+        String codeChallengeMethod = deviceCodeModel.getCodeChallengeMethod();
+
+        if (codeChallengeMethod != null && !codeChallengeMethod.isEmpty()) {
+            PkceUtils.checkParamsForPkceEnforcedClient(codeVerifier, codeChallenge, codeChallengeMethod, null, null, event, cors);
+        } else {
+            // PKCE Activation is OFF, execute the codes implemented in KEYCLOAK-2604
+            PkceUtils.checkParamsForPkceNotEnforcedClient(codeVerifier, codeChallenge, codeChallengeMethod, null, null, event, cors);
+        }
+
         // Approved
 
         String userSessionId = deviceCodeModel.getUserSessionId();
@@ -260,18 +275,25 @@ public class DeviceGrantType {
                 Response.Status.BAD_REQUEST);
         }
 
+        try {
+            session.clientPolicy().triggerOnEvent(new DeviceTokenRequestContext(deviceCodeModel, formParams));
+        } catch (ClientPolicyException cpe) {
+            event.error(cpe.getError());
+            throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_GRANT, cpe.getErrorDetail(),
+                Response.Status.BAD_REQUEST);
+        }
+
         // Compute client scopes again from scope parameter. Check if user still has them granted
         // (but in device_code-to-token request, it could just theoretically happen that they are not available)
         String scopeParam = deviceCodeModel.getScope();
-        Stream<ClientScopeModel> clientScopes = TokenManager.getRequestedClientScopes(scopeParam, client);
-        if (!TokenManager.verifyConsentStillAvailable(session, user, client, clientScopes)) {
+        if (!TokenManager.verifyConsentStillAvailable(session, user, client, TokenManager.getRequestedClientScopes(scopeParam, client))) {
             event.error(Errors.NOT_ALLOWED);
             throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_SCOPE,
                 "Client no longer has requested consent from user", Response.Status.BAD_REQUEST);
         }
 
         ClientSessionContext clientSessionCtx = DefaultClientSessionContext.fromClientSessionAndClientScopes(clientSession,
-            clientScopes, session);
+            TokenManager.getRequestedClientScopes(scopeParam, client), session);
 
         // Set nonce as an attribute in the ClientSessionContext. Will be used for the token generation
         clientSessionCtx.setAttribute(OIDCLoginProtocol.NONCE_PARAM, deviceCodeModel.getNonce());

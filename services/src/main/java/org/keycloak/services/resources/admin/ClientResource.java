@@ -20,6 +20,7 @@ import org.jboss.logging.Logger;
 import org.jboss.resteasy.annotations.cache.NoCache;
 import org.jboss.resteasy.spi.BadRequestException;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
+import org.keycloak.OAuthErrorException;
 import org.keycloak.authorization.admin.AuthorizationService;
 import org.keycloak.common.ClientConnection;
 import org.keycloak.common.Profile;
@@ -269,8 +270,13 @@ public class ClientResource {
             throw new ErrorResponseException(cpe.getError(), cpe.getErrorDetail(), Response.Status.BAD_REQUEST);
         }
 
-        new ClientManager(new RealmManager(session)).removeClient(realm, client);
-        adminEvent.operation(OperationType.DELETE).resourcePath(session.getContext().getUri()).success();
+        if (new ClientManager(new RealmManager(session)).removeClient(realm, client)) {
+            adminEvent.operation(OperationType.DELETE).resourcePath(session.getContext().getUri()).success();
+        }
+        else {
+            throw new ErrorResponseException(OAuthErrorException.INVALID_REQUEST, "Could not delete client",
+                    Response.Status.BAD_REQUEST);
+        }
     }
 
 
@@ -287,8 +293,12 @@ public class ClientResource {
         auth.clients().requireConfigure(client);
 
         logger.debug("regenerateSecret");
-        UserCredentialModel cred = KeycloakModelUtils.generateSecret(client);
-        CredentialRepresentation rep = ModelToRepresentation.toRepresentation(cred);
+        String secret = KeycloakModelUtils.generateSecret(client);
+
+        CredentialRepresentation rep = new CredentialRepresentation();
+        rep.setType(CredentialRepresentation.SECRET);
+        rep.setValue(secret);
+
         adminEvent.operation(OperationType.ACTION).resourcePath(session.getContext().getUri()).representation(rep).success();
         return rep;
     }
@@ -383,6 +393,9 @@ public class ClientResource {
         ClientScopeModel clientScope = realm.getClientScopeById(clientScopeId);
         if (clientScope == null) {
             throw new javax.ws.rs.NotFoundException("Client scope not found");
+        }
+        if (defaultScope && clientScope.isDynamicScope()) {
+            throw new ErrorResponseException("invalid_request", "Can't assign a Dynamic Scope to a Client as a Default Scope", Response.Status.BAD_REQUEST);
         }
         client.addClientScope(clientScope, defaultScope);
 

@@ -186,9 +186,14 @@ public class AssertEvents implements TestRule {
     }
 
     public ExpectedEvent expectRegister(String username, String email) {
+        return expectRegister(username, email, DEFAULT_CLIENT_ID);
+    }
+    
+    public ExpectedEvent expectRegister(String username, String email, String clientId) {
         UserRepresentation user = username != null ? getUser(username) : null;
         return expect(EventType.REGISTER)
                 .user(user != null ? user.getId() : null)
+                .client(clientId)
                 .detail(Details.USERNAME, username)
                 .detail(Details.EMAIL, email)
                 .detail(Details.REGISTER_METHOD, "form")
@@ -216,7 +221,7 @@ public class AssertEvents implements TestRule {
                 .user(defaultUserId())
                 .ipAddress(
                         System.getProperty("auth.server.host", "localhost").contains("localhost")
-                        ? CoreMatchers.anyOf(is(DEFAULT_IP_ADDRESS), is(DEFAULT_IP_ADDRESS_V6), is(DEFAULT_IP_ADDRESS_V6_SHORT))
+                        ? Matchers.anyOf(is(DEFAULT_IP_ADDRESS), is(DEFAULT_IP_ADDRESS_V6), is(DEFAULT_IP_ADDRESS_V6_SHORT))
                         : Matchers.any(String.class))
                 .session((String) null)
                 .event(event);

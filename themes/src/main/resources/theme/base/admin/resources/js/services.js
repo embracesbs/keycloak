@@ -1561,7 +1561,7 @@ module.factory('Current', function(Realm, $route, $rootScope) {
     };
 
     $rootScope.$on('$routeChangeStart', function() {
-        current.realms = Realm.query(null, function(realms) {
+        current.realms = Realm.query({briefRepresentation: true}, function(realms) {
             var currentRealm = null;
             if ($route.current.params.realm) {
                 for (var i = 0; i < realms.length; i++) {
@@ -1589,15 +1589,15 @@ module.factory('TimeUnit', function() {
         if (time % 60 == 0) {
             unit = 'Minutes';
             time  = time / 60;
+            if (time % 60 == 0) {
+                unit = 'Hours';
+                time = time / 60;
+                if (time % 24 == 0) {
+                    unit = 'Days';
+                }
+            }
         }
-        if (time % 60 == 0) {
-            unit = 'Hours';
-            time = time / 60;
-        }
-        if (time % 24 == 0) {
-            unit = 'Days'
-            time = time / 24;
-        }
+
         return unit;
     }
 
@@ -1642,14 +1642,14 @@ module.factory('TimeUnit2', function() {
                 if (time % 60 == 0) {
                     unit = 'Minutes';
                     time = time / 60;
-                }
-                if (time % 60 == 0) {
-                    unit = 'Hours';
-                    time = time / 60;
-                }
-                if (time % 24 == 0) {
-                    unit = 'Days'
-                    time = time / 24;
+                    if (time % 60 == 0) {
+                        unit = 'Hours';
+                        time = time / 60;
+                        if (time % 24 == 0) {
+                            unit = 'Days';
+                            time = time / 24;
+                        }
+                    }
                 }
             }
         }

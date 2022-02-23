@@ -23,15 +23,21 @@ import org.keycloak.models.map.authorization.entity.MapResourceServerEntity;
 import org.keycloak.representations.idm.authorization.DecisionStrategy;
 import org.keycloak.representations.idm.authorization.PolicyEnforcementMode;
 
-public abstract class MapResourceServerAdapter<K> extends AbstractResourceServerModel<MapResourceServerEntity<K>> {
+public class MapResourceServerAdapter extends AbstractResourceServerModel<MapResourceServerEntity> {
 
-    public MapResourceServerAdapter(MapResourceServerEntity<K> entity, StoreFactory storeFactory) {
+    public MapResourceServerAdapter(MapResourceServerEntity entity, StoreFactory storeFactory) {
         super(entity, storeFactory);
     }
 
     @Override
+    public String getId() {
+        return entity.getId();
+    }
+
+    @Override
     public boolean isAllowRemoteResourceManagement() {
-        return entity.isAllowRemoteResourceManagement();
+        Boolean isARRM = entity.isAllowRemoteResourceManagement();
+        return isARRM == null ? false : isARRM;
     }
 
     @Override
@@ -42,7 +48,8 @@ public abstract class MapResourceServerAdapter<K> extends AbstractResourceServer
 
     @Override
     public PolicyEnforcementMode getPolicyEnforcementMode() {
-        return entity.getPolicyEnforcementMode();
+        PolicyEnforcementMode pem = entity.getPolicyEnforcementMode();
+        return pem == null ? PolicyEnforcementMode.ENFORCING : pem;
     }
 
     @Override
@@ -59,7 +66,8 @@ public abstract class MapResourceServerAdapter<K> extends AbstractResourceServer
 
     @Override
     public DecisionStrategy getDecisionStrategy() {
-        return entity.getDecisionStrategy();
+        DecisionStrategy ds = entity.getDecisionStrategy();
+        return ds == null ? DecisionStrategy.UNANIMOUS : ds;
     }
 
     @Override

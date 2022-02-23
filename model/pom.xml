@@ -20,7 +20,7 @@
     <parent>
         <artifactId>keycloak-parent</artifactId>
         <groupId>org.keycloak</groupId>
-        <version>14.0.0</version>
+        <version>17.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <name>Keycloak Model Parent</name>
@@ -32,7 +32,10 @@
 
     <modules>
         <module>jpa</module>
+        <module>map-jpa</module>
         <module>infinispan</module>
         <module>map</module>
+        <module>build-processor</module>
+        <module>map-hot-rod</module>
     </modules>
 </project>

@@ -74,6 +74,8 @@ import org.keycloak.models.AdminRoles;
 import org.keycloak.models.RoleModel;
 import java.util.stream.Stream;
 
+import static org.keycloak.models.Constants.defaultClients;
+
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
@@ -100,7 +102,6 @@ public class ClientManager {
      * @param session
      * @param realm
      * @param rep
-     * @param addDefaultRoles
      * @return
      */
     public static ClientModel createClient(KeycloakSession session, RealmModel realm, ClientRepresentation rep) {
@@ -122,7 +123,7 @@ public class ClientManager {
 
 
     public boolean removeClient(RealmModel realm, ClientModel client) {
-        if (realm.removeClient(client.getId())) {
+        if (!isInternalClient(realm.getName(), client.getClientId()) && realm.removeClient(client.getId())) {
             UserSessionProvider sessions = realmManager.getSession().sessions();
             if (sessions != null) {
                 sessions.onClientRemoved(realm, client);
@@ -677,11 +678,21 @@ public class ClientManager {
         return authenticator.getAdapterConfiguration(client);
     }
 
-    public Boolean isMultiTenantClientRepresentation(ClientRepresentation clientRep) {
-        Map<String, String> attributes = clientRep.getAttributes();
-        if (attributes != null && attributes.containsKey(ClientModel.MULTI_TENANT)) {
-            return Boolean.parseBoolean(attributes.get(ClientModel.MULTI_TENANT));
+    private boolean isInternalClient(String realmName, String clientId) {
+        if (defaultClients.contains(clientId)) return true;
+
+        if (!"master".equals(realmName)) {
+            return false;
         }
-        return Boolean.FALSE;
+
+        final String internalClientSuffix = "-realm";
+
+        if (clientId.endsWith(internalClientSuffix)) {
+            return realmManager.getSession().realms()
+                    .getRealmByName(
+                            clientId.substring(0, clientId.length() - internalClientSuffix.length())) != null;
+        }
+
+        return false;
     }
 }

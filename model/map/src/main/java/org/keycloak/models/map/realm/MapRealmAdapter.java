@@ -17,12 +17,15 @@
 package org.keycloak.models.map.realm;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import static java.util.Objects.nonNull;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.jboss.logging.Logger;
 import org.keycloak.Config;
 import org.keycloak.common.enums.SslRequired;
 import org.keycloak.component.ComponentFactory;
@@ -42,6 +45,7 @@ import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.OAuth2DeviceConfig;
 import org.keycloak.models.OTPPolicy;
 import org.keycloak.models.PasswordPolicy;
+import org.keycloak.models.ParConfig;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.RequiredActionProviderModel;
 import org.keycloak.models.RequiredCredentialModel;
@@ -60,8 +64,9 @@ import org.keycloak.models.map.realm.entity.MapRequiredCredentialEntity;
 import org.keycloak.models.map.realm.entity.MapWebAuthnPolicyEntity;
 import org.keycloak.models.utils.ComponentUtil;
 
-public abstract class MapRealmAdapter<K> extends AbstractRealmModel<MapRealmEntity<K>> implements RealmModel {
+public class MapRealmAdapter extends AbstractRealmModel<MapRealmEntity> implements RealmModel {
 
+    private static final Logger LOG = Logger.getLogger(MapRealmAdapter.class);
     private static final String ACTION_TOKEN_GENERATED_BY_USER_LIFESPAN = "actionTokenGeneratedByUserLifespan";
     private static final String DEFAULT_SIGNATURE_ALGORITHM = "defaultSignatureAlgorithm";
     private static final String BRUTE_FORCE_PROTECTED = "bruteForceProtected";
@@ -75,8 +80,13 @@ public abstract class MapRealmAdapter<K> extends AbstractRealmModel<MapRealmEnti
 
     private PasswordPolicy passwordPolicy;
 
-    public MapRealmAdapter(KeycloakSession session, MapRealmEntity<K> entity) {
+    public MapRealmAdapter(KeycloakSession session, MapRealmEntity entity) {
         super(session, entity);
+    }
+
+    @Override
+    public String getId() {
+        return entity.getId();
     }
 
     @Override
@@ -181,7 +191,7 @@ public abstract class MapRealmAdapter<K> extends AbstractRealmModel<MapRealmEnti
 
     @Override
     public void setAttribute(String name, String value) {
-        entity.setAttribute(name, value);
+        entity.setAttribute(name, Collections.singletonList(value));
     }
 
     @Override
@@ -191,12 +201,27 @@ public abstract class MapRealmAdapter<K> extends AbstractRealmModel<MapRealmEnti
 
     @Override
     public String getAttribute(String name) {
-        return entity.getAttribute(name);
+        List<String> attribute = entity.getAttribute(name);
+        if (attribute.isEmpty()) return null;
+        return attribute.get(0);
     }
 
     @Override
     public Map<String, String> getAttributes() {
-        return entity.getAttributes();
+        return entity.getAttributes().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, 
+            entry -> {
+                if (entry.getValue().isEmpty()) {
+                    return null;
+                } else if (entry.getValue().size() > 1) {
+                    // This could be caused by an inconsistency in the storage, a programming error,
+                    // or a downgrade from a future version of Keycloak that already supports multi-valued attributes.
+                    // The caller will not see the other values, and when this entity is later updated, the additional values be will lost.
+                    LOG.warnf("Realm '%s' has attribute '%s' with %d values, retrieving only the first", getId(), entry.getKey(),
+                            entry.getValue().size());
+                }
+                return entry.getValue().get(0);
+            })
+        );
     }
 
     @Override
@@ -435,11 +460,11 @@ public abstract class MapRealmAdapter<K> extends AbstractRealmModel<MapRealmEnti
     public Map<String, Integer> getUserActionTokenLifespans() {
         Map<String, Integer> tokenLifespans = entity.getAttributes().entrySet().stream()
                 .filter(Objects::nonNull)
-                .filter(entry -> nonNull(entry.getValue()))
+                .filter(entry -> nonNull(entry.getValue()) && ! entry.getValue().isEmpty())
                 .filter(entry -> entry.getKey().startsWith(ACTION_TOKEN_GENERATED_BY_USER_LIFESPAN + "."))
                 .collect(Collectors.toMap(
                         entry -> entry.getKey().substring(ACTION_TOKEN_GENERATED_BY_USER_LIFESPAN.length() + 1),
-                        entry -> Integer.valueOf(entry.getValue())));
+                        entry -> Integer.valueOf(entry.getValue().get(0))));
 
         return Collections.unmodifiableMap(tokenLifespans);
     }
@@ -1280,7 +1305,7 @@ public abstract class MapRealmAdapter<K> extends AbstractRealmModel<MapRealmEnti
     }
 
     @Override
-    public void patchRealmLocalizationTexts(String locale, Map<String, String> localizationTexts) {
+    public void createOrUpdateRealmLocalizationTexts(String locale, Map<String, String> localizationTexts) {
         Map<String, Map<String, String>> realmLocalizationTexts = entity.getLocalizationTexts();
 
         if (realmLocalizationTexts.containsKey(locale)) {
@@ -1534,7 +1559,7 @@ public abstract class MapRealmAdapter<K> extends AbstractRealmModel<MapRealmEnti
 
     @Override
     public Stream<ClientInitialAccessModel> getClientInitialAccesses() {
-        return entity.getClientInitialAccesses().map(MapClientInitialAccessEntity::toModel);
+        return entity.getClientInitialAccesses().stream().map(MapClientInitialAccessEntity::toModel);
     }
 
     @Override
@@ -1556,5 +1581,9 @@ public abstract class MapRealmAdapter<K> extends AbstractRealmModel<MapRealmEnti
 
     public CibaConfig getCibaPolicy() {
         return new CibaConfig(this);
+    }
+
+    public ParConfig getParPolicy() {
+        return new ParConfig(this);
     }
 }

@@ -198,7 +198,29 @@ module.controller('ClientX509Ctrl', function($scope, $location, Client, Notifica
         }
     }, true);
 
+    function updateProperties() {
+       if ($scope.client.attributes["x509.allow.regex.pattern.comparison"]) {
+           if ($scope.client.attributes["x509.allow.regex.pattern.comparison"] == "true") {
+               $scope.allowRegexPatternComparison = true;
+           } else {
+               $scope.allowRegexPatternComparison = false;
+           }
+       }
+    }
+
+    updateProperties();
+
+    $scope.switchChange = function() {
+        $scope.changed = true;
+    }
+
     $scope.save = function() {
+        if ($scope.allowRegexPatternComparison == true) {
+            $scope.client.attributes["x509.allow.regex.pattern.comparison"] = "true";
+        } else {
+            $scope.client.attributes["x509.allow.regex.pattern.comparison"] = "false";
+        }
+
         if (!$scope.client.attributes["x509.subjectdn"]) {
             Notifications.error("The SubjectDN must not be empty.");
         } else {
@@ -224,6 +246,8 @@ module.controller('ClientX509Ctrl', function($scope, $location, Client, Notifica
 
     $scope.reset = function() {
         $scope.client.attributes["x509.subjectdn"] = $scope.clientCopy.attributes["x509.subjectdn"];
+        $scope.client.attributes["x509.allow.regex.pattern.comparison"] = $scope.clientCopy.attributes["x509.allow.regex.pattern.comparison"];
+        updateProperties();
         $location.url("/realms/" + $scope.realm.realm + "/clients/" + $scope.client.id + "/credentials");
     };
 });
@@ -619,8 +643,26 @@ module.controller('ClientOidcKeyCtrl', function($scope, $location, realm, client
         }
     }
 
-    $scope.switchChange = function() {
+    if ($scope.client.attributes["use.jwks.string"]) {
+        if ($scope.client.attributes["use.jwks.string"] == "true") {
+            $scope.useJwksString = true;
+        } else {
+            $scope.useJwksString = false;
+        }
+    }
+
+    $scope.jwksUrlSwitchChange = function() {
         $scope.changed = true;
+        if ($scope.useJwksUrl == false) {
+            $scope.useJwksString = false;
+        }
+    }
+
+    $scope.jwksStringSwitchChange = function() {
+        $scope.changed = true;
+        if ($scope.useJwksString == false) {
+            $scope.useJwksUrl = false;
+        }
     }
 
     $scope.save = function() {
@@ -629,6 +671,12 @@ module.controller('ClientOidcKeyCtrl', function($scope, $location, realm, client
             $scope.client.attributes["use.jwks.url"] = "true";
         } else {
             $scope.client.attributes["use.jwks.url"] = "false";
+        }
+
+        if ($scope.useJwksString == true) {
+            $scope.client.attributes["use.jwks.string"] = "true";
+        } else {
+            $scope.client.attributes["use.jwks.string"] = "false";
         }
 
         Client.update({
@@ -1143,6 +1191,9 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
     $scope.oauth2DeviceCodeLifespan = TimeUnit2.asUnit(client.attributes['oauth2.device.code.lifespan']);
     $scope.oauth2DevicePollingInterval = parseInt(client.attributes['oauth2.device.polling.interval']);
 
+    // PAR request.
+    $scope.requirePushedAuthorizationRequests = false;
+
     if(client.origin) {
         if ($scope.access.viewRealm) {
             Components.get({realm: realm.realm, componentId: client.origin}, function (link) {
@@ -1292,6 +1343,9 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
         $scope.idTokenSignedResponseAlg = $scope.client.attributes['id.token.signed.response.alg'];
         $scope.idTokenEncryptedResponseAlg = $scope.client.attributes['id.token.encrypted.response.alg'];
         $scope.idTokenEncryptedResponseEnc = $scope.client.attributes['id.token.encrypted.response.enc'];
+        $scope.authorizationSignedResponseAlg = $scope.client.attributes['authorization.signed.response.alg'];
+        $scope.authorizationEncryptedResponseAlg = $scope.client.attributes['authorization.encrypted.response.alg'];
+        $scope.authorizationEncryptedResponseEnc = $scope.client.attributes['authorization.encrypted.response.enc'];
 
         var attrVal1 = $scope.client.attributes['user.info.response.signature.alg'];
         $scope.userInfoSignedResponseAlg = attrVal1==null ? 'unsigned' : attrVal1;
@@ -1304,6 +1358,18 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
 
         var attrVal4 = $scope.client.attributes['pkce.code.challenge.method'];
         $scope.pkceCodeChallengeMethod = attrVal4==null ? 'none' : attrVal4;
+
+        var attrVal5 = $scope.client.attributes['ciba.backchannel.auth.request.signing.alg'];
+        $scope.cibaBackchannelAuthRequestSigningAlg = attrVal5==null ? 'none' : attrVal5;
+
+        var attrVal6 = $scope.client.attributes['request.object.encryption.alg'];
+        $scope.requestObjectEncryptionAlg = attrVal6==null ? 'any' : attrVal6;
+
+        var attrVal7 = $scope.client.attributes['request.object.encryption.enc'];
+        $scope.requestObjectEncryptionEnc = attrVal7==null ? 'any' : attrVal7;
+
+        var attrVal8 = $scope.client.attributes['ciba.backchannel.auth.request.signing.alg'];
+        $scope.cibaBackchannelAuthRequestSigningAlg = attrVal8==null ? 'any' : attrVal8;
 
         if ($scope.client.attributes["exclude.session.state.from.auth.response"]) {
             if ($scope.client.attributes["exclude.session.state.from.auth.response"] == "true") {
@@ -1328,6 +1394,8 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
                $scope.oidcCibaGrantEnabled = false;
            }
        }
+
+       $scope.cibaBackchannelTokenDeliveryMode = $scope.client.attributes['ciba.backchannel.token.delivery.mode'];
 
        if ($scope.client.attributes["use.refresh.tokens"]) {
            if ($scope.client.attributes["use.refresh.tokens"] == "true") {
@@ -1355,11 +1423,27 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
            }
        }
 
+        // PAR request.
+        if ($scope.client.attributes["require.pushed.authorization.requests"]) {
+            if ($scope.client.attributes["require.pushed.authorization.requests"] == "true") {
+                $scope.requirePushedAuthorizationRequests = true;
+            } else {
+                $scope.requirePushedAuthorizationRequests = false;
+            }
+        }
+
         var useRefreshToken = $scope.client.attributes["client_credentials.use_refresh_token"];
         if (useRefreshToken === "true") {
             $scope.useRefreshTokenForClientCredentialsGrant = true;
         } else {
             $scope.useRefreshTokenForClientCredentialsGrant = false;
+        }
+
+        var useLowerCaseBearerTypeInTokenResponse = $scope.client.attributes["token.response.type.bearer.lower-case"];
+        if (useLowerCaseBearerTypeInTokenResponse === "true") {
+            $scope.useLowerCaseBearerTypeInTokenResponse = true;
+        } else {
+            $scope.useLowerCaseBearerTypeInTokenResponse = false;
         }
 
         if ($scope.client.attributes["display.on.consent.screen"]) {
@@ -1391,6 +1475,12 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
             $scope.client.requestUris = $scope.client.attributes["request.uris"].split("##");
         } else {
             $scope.client.requestUris = [];
+        }
+
+        try {
+          $scope.acrLoaMap = JSON.parse($scope.client.attributes["acr.loa.map"] || "{}");
+        } catch (e) {
+          $scope.acrLoaMap = {};
         }
     }
 
@@ -1509,8 +1599,66 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
         }
     };
 
+    $scope.changeRequestObjectEncryptionAlg = function() {
+        if ($scope.requestObjectEncryptionAlg === 'any') {
+            $scope.clientEdit.attributes['request.object.encryption.alg'] = null;
+        } else {
+            $scope.clientEdit.attributes['request.object.encryption.alg'] = $scope.requestObjectEncryptionAlg;
+        }
+    };
+
+    $scope.changeRequestObjectEncryptionEnc = function() {
+        if ($scope.requestObjectEncryptionEnc === 'any') {
+            $scope.clientEdit.attributes['request.object.encryption.enc'] = null;
+        } else {
+            $scope.clientEdit.attributes['request.object.encryption.enc'] = $scope.requestObjectEncryptionEnc;
+        }
+    };
+
     $scope.changePkceCodeChallengeMethod = function() {
         $scope.clientEdit.attributes['pkce.code.challenge.method'] = $scope.pkceCodeChallengeMethod;
+    };
+
+    $scope.$watch('newAcr', function() {
+            $scope.changed = isChanged();
+        }, true);
+    $scope.$watch('newLoa', function() {
+            $scope.changed = isChanged();
+        }, true);
+    $scope.deleteAcrLoaMapping = function(acr) {
+        delete $scope.acrLoaMap[acr];
+        $scope.changed = true;
+    }
+    $scope.addAcrLoaMapping = function() {
+        if ($scope.newLoa.match(/^[0-9]+$/)) {
+            $scope.acrLoaMap[$scope.newAcr] = $scope.newLoa;
+            $scope.newAcr = $scope.newLoa = "";
+            $scope.changed = true;
+        }
+    }
+
+    $scope.changeCibaBackchannelAuthRequestSigningAlg = function() {
+        if ($scope.cibaBackchannelAuthRequestSigningAlg === 'any') {
+            $scope.clientEdit.attributes['ciba.backchannel.auth.request.signing.alg'] = null;
+        } else {
+            $scope.clientEdit.attributes['ciba.backchannel.auth.request.signing.alg'] = $scope.cibaBackchannelAuthRequestSigningAlg;
+        }
+    };
+
+    $scope.changeCibaBackchannelTokenDeliveryMode = function() {
+        $scope.clientEdit.attributes['ciba.backchannel.token.delivery.mode'] = $scope.cibaBackchannelTokenDeliveryMode;
+    };
+
+    $scope.changeAuthorizationSignedResponseAlg = function() {
+        $scope.clientEdit.attributes['authorization.signed.response.alg'] = $scope.authorizationSignedResponseAlg;
+    };
+
+    $scope.changeAuthorizationEncryptedResponseAlg = function() {
+        $scope.clientEdit.attributes['authorization.encrypted.response.alg'] = $scope.authorizationEncryptedResponseAlg;
+    };
+
+    $scope.changeAuthorizationEncryptedResponseEnc = function() {
+        $scope.clientEdit.attributes['authorization.encrypted.response.enc'] = $scope.authorizationEncryptedResponseEnc;
     };
 
     $scope.$watch(function() {
@@ -1530,6 +1678,9 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
             return true;
         }
         if ($scope.newRequestUri && $scope.newRequestUri.length > 0) {
+            return true;
+        }
+        if ($scope.newAcr && $scope.newAcr.length > 0 && $scope.newLoa && $scope.newLoa.length > 0) {
             return true;
         }
         return false;
@@ -1684,6 +1835,9 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
         } else {
             $scope.clientEdit.attributes["request.uris"] = null;
         }
+        if (!$scope.clientEdit.frontchannelLogout) {
+            $scope.clientEdit.attributes["frontchannel.logout.url"] = null;
+        }
         delete $scope.clientEdit.requestUris;
 
         if ($scope.samlArtifactBinding == true) {
@@ -1691,6 +1845,11 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
         } else {
             $scope.clientEdit.attributes["saml.artifact.binding"] = "false";
         }
+
+        if ($scope.newAcr && $scope.newAcr.length > 0 && $scope.newLoa && $scope.newLoa.length > 0) {
+          $scope.addAcrLoaMapping();
+        }
+
         if ($scope.samlServerSignature == true) {
             $scope.clientEdit.attributes["saml.server.signature"] = "true";
         } else {
@@ -1788,12 +1947,25 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
             $scope.clientEdit.attributes["tls.client.certificate.bound.access.tokens"] = "false";
         }
 
+        // PAR request.
+        if ($scope.requirePushedAuthorizationRequests == true) {
+            $scope.clientEdit.attributes["require.pushed.authorization.requests"] = "true";
+        } else {
+            $scope.clientEdit.attributes["require.pushed.authorization.requests"] = "false";
+        }
+
         // KEYCLOAK-9551 Client Credentials Grant generates refresh token
         // https://tools.ietf.org/html/rfc6749#section-4.4.3
         if ($scope.useRefreshTokenForClientCredentialsGrant === true) {
             $scope.clientEdit.attributes["client_credentials.use_refresh_token"] = "true";
         } else {
             $scope.clientEdit.attributes["client_credentials.use_refresh_token"] = "false";
+        }
+
+        if ($scope.useLowerCaseBearerTypeInTokenResponse === true) {
+            $scope.clientEdit.attributes["token.response.type.bearer.lower-case"] = "true";
+        } else {
+            $scope.clientEdit.attributes["token.response.type.bearer.lower-case"] = "false";
         }
 
         if ($scope.displayOnConsentScreen == true) {
@@ -1813,6 +1985,8 @@ module.controller('ClientDetailCtrl', function($scope, realm, client, flows, $ro
         } else {
             $scope.clientEdit.attributes["backchannel.logout.revoke.offline.tokens"] = "false";
         }
+
+        $scope.clientEdit.attributes["acr.loa.map"] = JSON.stringify($scope.acrLoaMap);
 
         $scope.clientEdit.protocol = $scope.protocol;
         $scope.clientEdit.attributes['saml.signature.algorithm'] = $scope.signatureAlgorithm;
@@ -3101,6 +3275,20 @@ module.controller('ClientScopeDetailCtrl', function($scope, realm, clientScope, 
             $scope.displayOnConsentScreen = true;
         }
 
+        if(serverInfo.featureEnabled("DYNAMIC_SCOPES")) {
+            if ($scope.clientScope.attributes["is.dynamic.scope"]) {
+                if ($scope.clientScope.attributes["is.dynamic.scope"] === "true") {
+                    $scope.isDynamicScope = true;
+                } else {
+                    $scope.isDynamicScope = false;
+                }
+            } else {
+                $scope.isDynamicScope = false;
+            }
+
+            $scope.clientScope.attributes["dynamic.scope.regexp"] = $scope.clientScope.name + ":*";
+        }
+
         if ($scope.clientScope.attributes["include.in.token.scope"]) {
             if ($scope.clientScope.attributes["include.in.token.scope"] == "true") {
                 $scope.includeInTokenScope = true;
@@ -3157,6 +3345,14 @@ module.controller('ClientScopeDetailCtrl', function($scope, realm, clientScope, 
             $scope.clientScope.attributes["display.on.consent.screen"] = "true";
         } else {
             $scope.clientScope.attributes["display.on.consent.screen"] = "false";
+        }
+
+        if(serverInfo.featureEnabled("DYNAMIC_SCOPES")) {
+            if ($scope.isDynamicScope === true) {
+                $scope.clientScope.attributes["is.dynamic.scope"] = "true";
+            } else {
+                $scope.clientScope.attributes["is.dynamic.scope"] = "false";
+            }
         }
 
         if ($scope.includeInTokenScope == true) {

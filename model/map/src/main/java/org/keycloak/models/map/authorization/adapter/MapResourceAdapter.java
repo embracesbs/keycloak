@@ -28,10 +28,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public abstract class MapResourceAdapter<K> extends AbstractResourceModel<MapResourceEntity<K>> {
+public class MapResourceAdapter extends AbstractResourceModel<MapResourceEntity> {
 
-    public MapResourceAdapter(MapResourceEntity<K> entity, StoreFactory storeFactory) {
+    public MapResourceAdapter(MapResourceEntity entity, StoreFactory storeFactory) {
         super(entity, storeFactory);
+    }
+
+    @Override
+    public String getId() {
+        return entity.getId();
     }
 
     @Override
@@ -58,7 +63,8 @@ public abstract class MapResourceAdapter<K> extends AbstractResourceModel<MapRes
 
     @Override
     public Set<String> getUris() {
-        return entity.getUris();
+        Set<String> uris = entity.getUris();
+        return uris == null ? Collections.emptySet() : entity.getUris();
     }
 
     @Override
@@ -80,7 +86,8 @@ public abstract class MapResourceAdapter<K> extends AbstractResourceModel<MapRes
 
     @Override
     public List<Scope> getScopes() {
-        return entity.getScopeIds().stream()
+        Set<String> ids = entity.getScopeIds();
+        return ids == null ? Collections.emptyList() : ids.stream()
                 .map(id -> storeFactory
                         .getScopeStore().findById(id, entity.getResourceServerId()))
                 .collect(Collectors.toList());
@@ -109,7 +116,8 @@ public abstract class MapResourceAdapter<K> extends AbstractResourceModel<MapRes
 
     @Override
     public boolean isOwnerManagedAccess() {
-        return entity.isOwnerManagedAccess();
+        Boolean isOMA = entity.isOwnerManagedAccess();
+        return isOMA == null ? false : isOMA;
     }
 
     @Override
@@ -126,12 +134,14 @@ public abstract class MapResourceAdapter<K> extends AbstractResourceModel<MapRes
 
     @Override
     public Map<String, List<String>> getAttributes() {
-        return Collections.unmodifiableMap(new HashMap<>(entity.getAttributes()));
+        Map<String, List<String>> attrs = entity.getAttributes();
+        return attrs == null ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(attrs));
     }
 
     @Override
     public String getSingleAttribute(String name) {
-        return entity.getSingleAttribute(name);
+        List<String> attributeValues = entity.getAttribute(name);
+        return  attributeValues == null || attributeValues.isEmpty() ? null : attributeValues.get(0);
     }
 
     @Override

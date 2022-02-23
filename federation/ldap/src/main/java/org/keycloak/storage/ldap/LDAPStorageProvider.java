@@ -531,7 +531,9 @@ public class LDAPStorageProvider implements UserStorageProvider,
             if(existingLocalUser != null){
                 imported = existingLocalUser;
                 // Need to evict the existing user from cache
-                session.userCache().evict(realm, existingLocalUser);
+                if (session.userCache() != null) {
+                    session.userCache().evict(realm, existingLocalUser);			
+                }
             } else {
                 imported = session.userLocalStorage().addUser(realm, ldapUsername);
             }
@@ -658,8 +660,8 @@ public class LDAPStorageProvider implements UserStorageProvider,
             String password = input.getChallengeResponse();
             LDAPObject ldapUser = loadAndValidateUser(realm, user);
             if (ldapIdentityStore.getConfig().isValidatePasswordPolicy()) {
-		PolicyError error = session.getProvider(PasswordPolicyManagerProvider.class).validate(realm, user, password);
-		if (error != null) throw new ModelException(error.getMessage(), error.getParameters());
+                PolicyError error = session.getProvider(PasswordPolicyManagerProvider.class).validate(realm, user, password);
+                if (error != null) throw new ModelException(error.getMessage(), error.getParameters());
             }
             try {
                 LDAPOperationDecorator operationDecorator = null;
