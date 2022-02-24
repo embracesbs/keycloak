@@ -776,11 +776,10 @@ public class RealmManager {
         ClientScopeModel mtSpecScope = setupMultiTenantClientSpecificClientScope(realm, adminRealm);
 
         // fetch multi-tenant clients from master
-        // TODO: handle stream
         Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
-        Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(adminRealm, attributes, 0, 200);
+        List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(adminRealm, attributes, 0, 200).collect(Collectors.toList());
 
-        if (multiTenantMasterClients != null && multiTenantMasterClients.count() > 0) {
+        if (multiTenantMasterClients != null && multiTenantMasterClients.size() > 0) {
 
             multiTenantMasterClients.forEach(multiTenantClient -> {
 
