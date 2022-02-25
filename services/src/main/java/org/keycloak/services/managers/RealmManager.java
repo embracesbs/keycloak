@@ -796,7 +796,10 @@ public class RealmManager {
                 // set proper description:
                 // -> replace [multi-tenant] with [multi-tenant instance]
                 String instanceDescription = mtClientRepLocal.getDescription();
-                if (instanceDescription.contains(ClientManager.multiTenantDescriptionSuffix)) {
+                if (instanceDescription == null) {
+                    instanceDescription = ClientManager.multiTenantInstanceDescriptionSuffix;
+                }
+                else if (instanceDescription.contains(ClientManager.multiTenantDescriptionSuffix)) {
                     instanceDescription = instanceDescription.replace(ClientManager.multiTenantDescriptionSuffix, ClientManager.multiTenantInstanceDescriptionSuffix);
                 }
 
