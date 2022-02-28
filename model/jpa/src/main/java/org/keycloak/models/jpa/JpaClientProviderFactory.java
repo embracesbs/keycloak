@@ -19,18 +19,14 @@ package org.keycloak.models.jpa;
 
 import org.keycloak.Config;
 import org.keycloak.connections.jpa.JpaConnectionProvider;
-import org.keycloak.models.ClientProvider;
-import org.keycloak.models.ClientProviderFactory;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakSessionFactory;
+import org.keycloak.models.*;
 import org.keycloak.protocol.saml.SamlConfigAttributes;
 
 import javax.persistence.EntityManager;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import static org.keycloak.models.jpa.JpaRealmProviderFactory.PROVIDER_ID;
 import static org.keycloak.models.jpa.JpaRealmProviderFactory.PROVIDER_PRIORITY;
 
@@ -39,8 +35,12 @@ public class JpaClientProviderFactory implements ClientProviderFactory {
     private Set<String> clientSearchableAttributes = null;
 
     private static final List<String> REQUIRED_SEARCHABLE_ATTRIBUTES = Arrays.asList(
-        "saml_idp_initiated_sso_url_name",
-        SamlConfigAttributes.SAML_ARTIFACT_BINDING_IDENTIFIER
+            "saml_idp_initiated_sso_url_name",
+            SamlConfigAttributes.SAML_ARTIFACT_BINDING_IDENTIFIER
+    );
+
+    private static final List<String> EMBRACE_SEARCHABLE_ATTRIBUTES = Arrays.asList(
+            ClientModel.MULTI_TENANT
     );
 
     @Override
@@ -50,7 +50,12 @@ public class JpaClientProviderFactory implements ClientProviderFactory {
             String s = System.getProperty("keycloak.client.searchableAttributes");
             searchableAttrsArr = s == null ? null : s.split("\\s*,\\s*");
         }
-        HashSet<String> s = new HashSet<>(REQUIRED_SEARCHABLE_ATTRIBUTES);
+        List<String> SEARCHABLE_ATTRIBUTES_COMBINED =
+                Stream.of(REQUIRED_SEARCHABLE_ATTRIBUTES, EMBRACE_SEARCHABLE_ATTRIBUTES)
+                        .flatMap(Collection::stream)
+                        .collect(Collectors.toList());
+
+        HashSet<String> s = new HashSet<>(SEARCHABLE_ATTRIBUTES_COMBINED);
         if (searchableAttrsArr != null) {
             s.addAll(Arrays.asList(searchableAttrsArr));
         }
