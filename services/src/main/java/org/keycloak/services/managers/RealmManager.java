@@ -777,7 +777,7 @@ public class RealmManager {
 
         // fetch multi-tenant clients from master
         Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
-        List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(adminRealm, attributes, 0, 200).collect(Collectors.toList());
+        List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(adminRealm, attributes, 0, 999).collect(Collectors.toList());
 
         if (multiTenantMasterClients != null && multiTenantMasterClients.size() > 0) {
 
@@ -874,8 +874,8 @@ public class RealmManager {
         String mtRealmSpecificScopeName = EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX + clientRealm.getName();
 
         // check scope existence
-        List<ClientScopeModel> masterClientScopesCurrent = adminRealm.getClientScopes();
-        if (masterClientScopesCurrent.stream().map((ClientScopeModel model) -> model.getName()).collect(Collectors.toList()).contains(mtRealmSpecificScopeName)) {
+        Stream<ClientScopeModel> masterClientScopesCurrent = adminRealm.getClientScopesStream();
+        if (masterClientScopesCurrent.map((ClientScopeModel model) -> model.getName()).collect(Collectors.toList()).contains(mtRealmSpecificScopeName)) {
             logger.warnv("Multi-tenant client realm specific client scope {0} found in {1} realm. Skipping scope creation!", mtRealmSpecificScopeName, clientRealm.getName());
             return null;
         }
