@@ -892,28 +892,6 @@ public class RealmManager {
             return;
         }
 
-        // DEBUG!!!
-        String scopeName = mtSpecClientScope.getName();
-        // extract realm name
-        String realmNameSubs = scopeName.substring(EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX.length());
-
-        List<RealmModel> allClientRealms =
-                model.getRealmsStream()
-                        .filter(realmModel -> !realmModel.getName().equals(Config.getAdminRealm()))
-                        .collect(Collectors.toList());
-
-        Optional<RealmModel> deletedRealm =
-                allClientRealms
-                        .stream()
-                        .filter(realmModel -> realmModel.getName().equals(realmNameSubs))
-                        .findFirst();
-
-        // is realm deleted?
-        if (deletedRealm.isPresent()) {
-
-        }
-        // DEBUG END!!!
-
         // fetch multi-tenant clients from master
         Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
         List<ClientModel> multiTenantMasterClients =

@@ -235,14 +235,14 @@ public class KeycloakApplication extends Application {
             logger.infov("Multi-tenancy migration - Adding role {0} to admin role composites!", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
             adminRole.addCompositeRole(queryClientIdsRole);
 
-            // search for multitenant clients
+            // search for multi-tenant clients
             logger.infov("Multi-tenancy migration - Searching for existing multi-tenant clients!");
             Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
             List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(masterRealm, attributes, 0, 200).collect(Collectors.toList());
 
             if (multiTenantMasterClients.size() == 0) {
-                logger.infov("Multi-tenancy migration - None existing multitenant clients found!");
-                return; // no multitenant clients found
+                logger.infov("Multi-tenancy migration - None existing multi-tenant clients found!");
+                return;
             }
 
             // foreach existing mt-client
@@ -465,7 +465,7 @@ public class KeycloakApplication extends Application {
                 String scopeName = ipuRealmScope.getName();
                 // extract realm name
                 String realmName = scopeName.substring(EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX.length());
-                logger.infov("Multi-tenant clients specialized client scopes migration - Realm name extracted from scope: '{0}' ", realmName);
+                logger.infov("Multi-tenant clients specialized client scopes migration - Realm name extracted from scope: {0} ", realmName);
                 // does realm exist?
                 Optional<RealmModel> deletedRealm =
                         allClientRealms
@@ -475,9 +475,11 @@ public class KeycloakApplication extends Application {
 
                 // is realm deleted?
                 if (deletedRealm.isPresent()) {
+                    logger.infov("Multi-tenant clients specialized client scopes migration - Realm {0} is existing and valid.", realmName);
                     // add scope to the list of valid scopes
                     validScopes.add(ipuRealmScope);
                 } else {
+                    logger.infov("Multi-tenant clients specialized client scopes migration - Realm {0} deletion detected. Proceeding with leftovers cleanup.", realmName);
                     // cleanup leftovers after previously deleted realm
                     new RealmManager(sessionB).destroyMultiTenantClientRegistrations(realmName);
                 }
