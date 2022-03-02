@@ -19,16 +19,16 @@ package org.keycloak.services.resources;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.jboss.logging.Logger;
 import org.keycloak.Config;
+import org.keycloak.authorization.AuthorizationProvider;
+import org.keycloak.authorization.model.Policy;
+import org.keycloak.authorization.model.ResourceServer;
+import org.keycloak.authorization.store.PolicyStore;
+import org.keycloak.authorization.store.ResourceServerStore;
 import org.keycloak.common.util.Resteasy;
 import org.keycloak.config.ConfigProviderFactory;
+import org.keycloak.constants.EmbraceMultiTenantConstants;
 import org.keycloak.exportimport.ExportImportManager;
-import org.keycloak.models.KeycloakSession;
-import org.keycloak.models.KeycloakSessionFactory;
-import org.keycloak.models.KeycloakSessionTask;
-import org.keycloak.models.ModelDuplicateException;
-import org.keycloak.models.RealmModel;
-import org.keycloak.models.UserModel;
-import org.keycloak.models.UserProvider;
+import org.keycloak.models.*;
 import org.keycloak.models.dblock.DBLockManager;
 import org.keycloak.models.dblock.DBLockProvider;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -46,12 +46,9 @@ import org.keycloak.services.managers.ApplianceBootstrap;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.services.managers.UserStorageSyncManager;
 import org.keycloak.services.resources.admin.AdminRoot;
-import org.keycloak.services.scheduled.ClearExpiredClientInitialAccessTokens;
-import org.keycloak.services.scheduled.ClearExpiredEvents;
-import org.keycloak.services.scheduled.ClearExpiredUserSessions;
-import org.keycloak.services.scheduled.ClusterAwareScheduledTaskRunner;
-import org.keycloak.services.scheduled.ScheduledTaskRunner;
+import org.keycloak.services.scheduled.*;
 import org.keycloak.services.util.ObjectMapperResolver;
+import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
 import org.keycloak.timer.TimerProvider;
 import org.keycloak.transaction.JtaTransactionManagerLookup;
 import org.keycloak.util.JsonSerialization;
@@ -59,30 +56,13 @@ import org.keycloak.util.JsonSerialization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
 import javax.ws.rs.core.Application;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.keycloak.models.ClientModel;
-import org.keycloak.models.ClientScopeModel;
-import org.keycloak.models.RoleModel;
-import org.keycloak.models.AdminRoles;
-import org.keycloak.authorization.AuthorizationProvider;
-import org.keycloak.authorization.model.Policy;
-import org.keycloak.authorization.model.ResourceServer;
-import org.keycloak.authorization.store.PolicyStore;
-import org.keycloak.authorization.store.ResourceServerStore;
-import org.keycloak.constants.EmbraceMultiTenantConstants;
-import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
 import java.util.stream.Collectors;
-import static java.lang.Boolean.TRUE;
-
 import java.util.stream.Stream;
+
+import static java.lang.Boolean.TRUE;
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
@@ -95,8 +75,8 @@ public class KeycloakApplication extends Application {
 
     protected final PlatformProvider platform = Platform.getPlatform();
 
-    protected Set<Object> singletons = new HashSet<Object>();
-    protected Set<Class<?>> classes = new HashSet<Class<?>>();
+    protected Set<Object> singletons = new HashSet<>();
+    protected Set<Class<?>> classes = new HashSet<>();
 
     protected static KeycloakSessionFactory sessionFactory;
 
@@ -171,43 +151,40 @@ public class KeycloakApplication extends Application {
         ExportImportManager[] exportImportManager = new ExportImportManager[1];
 
         logger.debug("bootstrap");
-        KeycloakModelUtils.runJobInTransaction(sessionFactory, new KeycloakSessionTask() {
-            @Override
-            public void run(KeycloakSession session) {
-                // TODO what is the purpose of following piece of code? Leaving it as is for now.
-                JtaTransactionManagerLookup lookup = (JtaTransactionManagerLookup) sessionFactory.getProviderFactory(JtaTransactionManagerLookup.class);
-                if (lookup != null) {
-                    if (lookup.getTransactionManager() != null) {
-                        try {
-                            Transaction transaction = lookup.getTransactionManager().getTransaction();
-                            logger.debugv("bootstrap current transaction? {0}", transaction != null);
-                            if (transaction != null) {
-                                logger.debugv("bootstrap current transaction status? {0}", transaction.getStatus());
-                            }
-                        } catch (SystemException e) {
-                            throw new RuntimeException(e);
+        KeycloakModelUtils.runJobInTransaction(sessionFactory, session -> {
+            // TODO what is the purpose of following piece of code? Leaving it as is for now.
+            JtaTransactionManagerLookup lookup = (JtaTransactionManagerLookup) sessionFactory.getProviderFactory(JtaTransactionManagerLookup.class);
+            if (lookup != null) {
+                if (lookup.getTransactionManager() != null) {
+                    try {
+                        Transaction transaction = lookup.getTransactionManager().getTransaction();
+                        logger.debugv("bootstrap current transaction? {0}", transaction != null);
+                        if (transaction != null) {
+                            logger.debugv("bootstrap current transaction status? {0}", transaction.getStatus());
                         }
+                    } catch (SystemException e) {
+                        throw new RuntimeException(e);
                     }
                 }
-                // TODO up here ^^
-
-                ApplianceBootstrap applianceBootstrap = new ApplianceBootstrap(session);
-                exportImportManager[0] = new ExportImportManager(session);
-
-                boolean createMasterRealm = applianceBootstrap.isNewInstall();
-                if (exportImportManager[0].isRunImport() && exportImportManager[0].isImportMasterIncluded()) {
-                    createMasterRealm = false;
-                }
-
-                if (createMasterRealm) {
-                    applianceBootstrap.createMasterRealm();
-                }
-
-                // once-run embrace data migration:
-                embraceMigration01();
-                embraceMigration02();
-                embraceMigration03();
             }
+            // TODO up here ^^
+
+            ApplianceBootstrap applianceBootstrap = new ApplianceBootstrap(session);
+            exportImportManager[0] = new ExportImportManager(session);
+
+            boolean createMasterRealm = applianceBootstrap.isNewInstall();
+            if (exportImportManager[0].isRunImport() && exportImportManager[0].isImportMasterIncluded()) {
+                createMasterRealm = false;
+            }
+
+            if (createMasterRealm) {
+                applianceBootstrap.createMasterRealm();
+            }
+
+            // run-once embrace data migration:
+            embraceMigration01();
+            embraceMigration02();
+            embraceMigration03();
         });
 
         if (exportImportManager[0].isRunImport()) {
@@ -258,14 +235,14 @@ public class KeycloakApplication extends Application {
             logger.infov("Multi-tenancy migration - Adding role {0} to admin role composites!", AdminRoles.QUERY_MULTITENANT_CLIENT_IDS);
             adminRole.addCompositeRole(queryClientIdsRole);
 
-            // search for multitenant clients
+            // search for multi-tenant clients
             logger.infov("Multi-tenancy migration - Searching for existing multi-tenant clients!");
             Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
             List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(masterRealm, attributes, 0, 200).collect(Collectors.toList());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.size() == 0) {
-                logger.infov("Multi-tenancy migration - None existing multitenant clients found!");
-                return; // no multitenant clients found
+            if (multiTenantMasterClients.size() == 0) {
+                logger.infov("Multi-tenancy migration - None existing multi-tenant clients found!");
+                return;
             }
 
             // foreach existing mt-client
@@ -309,7 +286,7 @@ public class KeycloakApplication extends Application {
             Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
             List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(masterRealm, attributes, 0, 200).collect(Collectors.toList());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.size() == 0) {
+            if (multiTenantMasterClients.size() == 0) {
                 logger.infov("Multi-tenant clients default permissions migration - None of existing multitenant clients found. Nothing to migrate!");
                 return; // no multitenant clients found
             }
@@ -318,10 +295,10 @@ public class KeycloakApplication extends Application {
             AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
 
             // list all user realms
-            List<RealmModel> realms = session.realms().getRealms();
+            Stream<RealmModel> realms = session.realms().getRealmsStream();
 
             // foreach user realm, foreach mt-client instance
-            for (RealmModel clientRealm : realms) {
+            for (RealmModel clientRealm : realms.collect(Collectors.toList())) {
 
                 // exclude "master"
                 if (clientRealm.getName().equals(Config.getAdminRealm()))
@@ -409,10 +386,10 @@ public class KeycloakApplication extends Application {
             if (null == masterRealm) return; //ths is first app start against empty DB => no migration needed
 
             // a. For every client realm create specialized multi-tenant client scope:
-            List<RealmModel> realms = sessionA.realms().getRealms();
+            Stream<RealmModel> realms = sessionA.realms().getRealmsStream();
 
             // foreach user realm, foreach mt-client instance
-            for (RealmModel clientRealm : realms) {
+            for (RealmModel clientRealm : realms.collect(Collectors.toList())) {
 
                 // exclude "master"
                 if (clientRealm.getName().equals(Config.getAdminRealm()))
@@ -424,8 +401,8 @@ public class KeycloakApplication extends Application {
 
                 logger.infov("Multi-tenant clients specialized client scopes migration - Searching for master scope {0} ....", realmRelatedScopeName);
 
-                List<ClientScopeModel> masterClientScopesCurrent = masterRealm.getClientScopes();
-                if (masterClientScopesCurrent.stream().map((ClientScopeModel model) -> model.getName()).collect(Collectors.toList()).contains(realmRelatedScopeName)) {
+                Stream<ClientScopeModel> masterClientScopesCurrent = masterRealm.getClientScopesStream();
+                if (masterClientScopesCurrent.map(ClientScopeModel::getName).collect(Collectors.toList()).contains(realmRelatedScopeName)) {
                     logger.infov("Multi-tenant clients specialized client scopes migration - realm specific client scope {0} found in {1} realm. Move on to another client realm ...", realmRelatedScopeName, clientRealm.getName());
                     continue;
                 }
@@ -462,21 +439,63 @@ public class KeycloakApplication extends Application {
             logger.infov("Multi-tenant clients specialized client scopes migration - Searching for existing multi-tenant clients ...");
             List<ClientModel> multiTenantMasterClients = sessionB.clientStorageManager().searchClientsByAttributes(masterRealm, Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString()), 0, 200).collect(Collectors.toList());
 
-            if (multiTenantMasterClients == null || multiTenantMasterClients.size() == 0) {
+            if (multiTenantMasterClients.size() == 0) {
                 logger.infov("Multi-tenant clients specialized client scopes migration - None of existing multi-tenant clients found. End migration!");
                 return; // no multi-tenant clients found
             }
 
+            // collect all client realms
+            List<RealmModel> allClientRealms =
+                    sessionB.realms()
+                            .getRealmsStream()
+                            .filter(realmModel -> !realmModel.getName().equals(Config.getAdminRealm()))
+                            .collect(Collectors.toList());
+
             // find all master mt-client system client scopes
-            List<ClientScopeModel> ipuRealmScopes = KeycloakModelUtils.findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX).collect(Collectors.toList());
+            List<ClientScopeModel> ipuRealmScopes =
+                    KeycloakModelUtils
+                            .findClientScopesByNamePrefix(masterRealm, EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX)
+                            .collect(Collectors.toList());
+
+            // collection of valid existing scopes
+            List<ClientScopeModel> validScopes = new ArrayList<>(ipuRealmScopes.size());
+
+            // detect deleted realm and do cleanup:
+            for (ClientScopeModel ipuRealmScope: ipuRealmScopes) {
+                String scopeName = ipuRealmScope.getName();
+                // extract realm name
+                String realmName = scopeName.substring(EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX.length());
+                logger.infov("Multi-tenant clients specialized client scopes migration - Realm name extracted from scope: {0} ", realmName);
+                // does realm exist?
+                Optional<RealmModel> deletedRealm =
+                        allClientRealms
+                                .stream()
+                                .filter(realmModel -> realmModel.getName().equals(realmName))
+                                .findFirst();
+
+                // is realm deleted?
+                if (deletedRealm.isPresent()) {
+                    logger.infov("Multi-tenant clients specialized client scopes migration - Realm {0} is existing and valid.", realmName);
+                    // add scope to the list of valid scopes
+                    validScopes.add(ipuRealmScope);
+                } else {
+                    logger.infov("Multi-tenant clients specialized client scopes migration - Realm {0} deletion detected. Proceeding with leftovers cleanup.", realmName);
+                    // cleanup leftovers after previously deleted realm
+                    new RealmManager(sessionB).destroyMultiTenantClientRegistrations(realmName);
+                }
+            }
 
             // foreach existing mt-client
             multiTenantMasterClients.forEach(multiTenantClient -> {
                 logger.infov("Multi-tenant clients specialized client scopes migration - Adding optional client scopes to mt-client with name {0} ....", multiTenantClient.getClientId());
 
                 // set client scopes
-                ipuRealmScopes.forEach(ipuRealmScope -> {
-                    multiTenantClient.addClientScope(ipuRealmScope, false);
+                validScopes.forEach(ipuRealmScope -> {
+                    // set if not already set!
+                    Map<String, ClientScopeModel> currentScopes =  multiTenantClient.getClientScopes(false);
+                    if (!currentScopes.containsKey(ipuRealmScope.getName())) {
+                        multiTenantClient.addClientScope(ipuRealmScope, false);
+                    }
                 });
 
                 logger.infov("Multi-tenant clients specialized client scopes migration - Done for Multi-tenant client with name {0}!", multiTenantClient.getClientId());
