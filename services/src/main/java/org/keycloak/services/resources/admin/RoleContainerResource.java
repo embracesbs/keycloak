@@ -160,6 +160,15 @@ public class RoleContainerResource extends RoleResource {
             } else {
                 adminEvent.resource(ResourceType.REALM_ROLE);
             }
+            
+            // readonly-role related registrations
+            if (!role.isClientRole() && isReadOnly(rep)) {
+                role.setSingleAttribute(READ_ONLY_ROLE_ATTRIBUTE, Boolean.TRUE.toString());
+                if (ArrayUtils.isNotEmpty(getReadOnlyRoleRealmsFilter(rep))) {
+                    role.setAttribute(READ_ONLY_ROLE_REALMS_ATTRIBUTE, Arrays.asList(getReadOnlyRoleRealmsFilter(rep)));
+                }
+                setupReadonlyRoleRegistrations(session, role, rep);
+            }
 
             // Handling of nested composite roles for KEYCLOAK-12754
             if (rep.isComposite() && rep.getComposites() != null) {

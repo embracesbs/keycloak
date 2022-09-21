@@ -76,6 +76,8 @@ import static org.keycloak.models.map.storage.QueryParameters.Order.ASCENDING;
 import static org.keycloak.models.map.storage.QueryParameters.withCriteria;
 import static org.keycloak.models.map.storage.criteria.DefaultModelCriteria.criteria;
 
+import static org.keycloak.utils.StreamsUtil.paginatedStream;
+
 public class MapUserProvider implements UserProvider.Streams, UserCredentialStore.Streams {
 
     private static final Logger LOG = Logger.getLogger(MapUserProvider.class);
@@ -713,12 +715,12 @@ public class MapUserProvider implements UserProvider.Streams, UserCredentialStor
     @Override
     public Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
         LOG.tracef("searchForUserByUserAttributeStreamPaged(%s, %s, %s, %s, %s)%s", realm, attrName, attrValue, firstResult, maxResults, getShortStackTrace());
-        ModelCriteriaBuilder<UserModel> mcb = userStore.createCriteriaBuilder()
-                .compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
-                .compare(SearchableFields.ATTRIBUTE, Operator.EQ, attrName, attrValue);
+        DefaultModelCriteria<UserModel> mcb = criteria();
+        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
+                 .compare(SearchableFields.ATTRIBUTE, Operator.EQ, attrName, attrValue);
 
-        return paginatedStream(tx.read(mcb)
-                .sorted(MapUserEntity.COMPARE_BY_USERNAME), firstResult, maxResults)
+        return paginatedStream(tx.read(withCriteria(mcb)
+                .orderBy(SearchableFields.USERNAME, ASCENDING)), firstResult, maxResults)
                 .map(entityToAdapterFunc(realm));
     }
 

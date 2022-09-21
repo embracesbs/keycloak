@@ -695,4 +695,12 @@ public class ClientManager {
 
         return false;
     }
+    
+    public Boolean isMultiTenantClientRepresentation(ClientRepresentation clientRep) {
+        Map<String, String> attributes = clientRep.getAttributes();
+        if (attributes != null && attributes.containsKey(ClientModel.MULTI_TENANT)) {
+            return Boolean.parseBoolean(attributes.get(ClientModel.MULTI_TENANT));
+        }
+        return Boolean.FALSE;
+    }
 }

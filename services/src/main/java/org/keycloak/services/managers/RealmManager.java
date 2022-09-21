@@ -776,96 +776,92 @@ public class RealmManager {
         ClientScopeModel mtSpecScope = setupMultiTenantClientSpecificClientScope(realm, adminRealm);
 
         // fetch multi-tenant clients from master
-        // TODO: handle stream
         Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
-        Stream<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(adminRealm, attributes, 0, 200);
+        List<ClientModel> multiTenantMasterClients = session.clientStorageManager().searchClientsByAttributes(adminRealm, attributes, 0, 200).collect(Collectors.toList());
 
-        if (multiTenantMasterClients != null && multiTenantMasterClients.count() > 0) {
+        multiTenantMasterClients.forEach(multiTenantClient -> {
 
-            multiTenantMasterClients.forEach(multiTenantClient -> {
+            ClientRepresentation adminMtClientRepresentation = ModelToRepresentation.toRepresentation(multiTenantClient, session);
 
-                ClientRepresentation adminMtClientRepresentation = ModelToRepresentation.toRepresentation(multiTenantClient, session);
+            ClientRepresentation mtClientRepLocal = ClientManager.deepCopy(adminMtClientRepresentation);
 
-                ClientRepresentation mtClientRepLocal = ClientManager.deepCopy(adminMtClientRepresentation);
+            mtClientRepLocal.setId(null);
+            mtClientRepLocal.setProtocolMappers(null);
+            mtClientRepLocal.setDefaultClientScopes(null);
+            mtClientRepLocal.setOptionalClientScopes(null);
+            mtClientRepLocal.setServiceAccountsEnabled(true);
 
-                mtClientRepLocal.setId(null);
-                mtClientRepLocal.setProtocolMappers(null);
-                mtClientRepLocal.setDefaultClientScopes(null);
-                mtClientRepLocal.setOptionalClientScopes(null);
-                mtClientRepLocal.setServiceAccountsEnabled(true);
+            // set proper description:
+            // -> replace [multi-tenant] with [multi-tenant instance]
+            String instanceDescription = mtClientRepLocal.getDescription();
+            if (instanceDescription.contains(ClientManager.multiTenantDescriptionSuffix)) {
+                instanceDescription = instanceDescription.replace(ClientManager.multiTenantDescriptionSuffix, ClientManager.multiTenantInstanceDescriptionSuffix);
+            }
 
-                // set proper description:
-                // -> replace [multi-tenant] with [multi-tenant instance]
-                String instanceDescription = mtClientRepLocal.getDescription();
-                if (instanceDescription.contains(ClientManager.multiTenantDescriptionSuffix)) {
-                    instanceDescription = instanceDescription.replace(ClientManager.multiTenantDescriptionSuffix, ClientManager.multiTenantInstanceDescriptionSuffix);
+            mtClientRepLocal.setDescription(instanceDescription);
+
+            // get service account roles from attributes
+            String[] providedRoles = multiTenantClient.getMultiTenantServiceAccountRoles();
+
+            // determine if Authorization Service needs to be enabled!
+            if (Arrays.stream(providedRoles).anyMatch(r -> r.contains("-authorization"))) {
+                mtClientRepLocal.setAuthorizationServicesEnabled(TRUE);
+            }
+
+            ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal); // , true);
+
+            // create mandatory resource-server client service account:
+            UserModel serviceAccount = session.users().getServiceAccount(realmClient);
+
+            if (serviceAccount == null) {
+                new ClientManager(this).enableServiceAccount(realmClient);
+            }
+
+            // determine if Authorization Service needs to be enabled!
+            if (TRUE.equals(mtClientRepLocal.getAuthorizationServicesEnabled())) {
+                AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
+
+                ResourceServer resourceServer = RepresentationToModel.createResourceServer(realmClient, session, true);
+
+                ResourceServerDefaultPermissionCreator resourceServerDefaultPermissionCreator
+                        = new ResourceServerDefaultPermissionCreator(session, authorization, resourceServer);
+
+                resourceServerDefaultPermissionCreator.create(realmClient);
+
+                ResourceServerRepresentation authorizationSettings = mtClientRepLocal.getAuthorizationSettings();
+
+                if (authorizationSettings != null) {
+                    mtClientRepLocal.setClientId(realmClient.getId());
+                    RepresentationToModel.toModel(authorizationSettings, authorization);
                 }
 
-                mtClientRepLocal.setDescription(instanceDescription);
+                // -> add [resource-server] suffix
+                realmClient.setDescription(String.format("%s %s", instanceDescription, ClientManager.resourceServerDescriptionSuffix));
+            }
 
-                // get service account roles from attributes
-                String[] providedRoles = multiTenantClient.getMultiTenantServiceAccountRoles();
+            // find related master admin app by name "{realmName}-realm"
+            String masterAdminAppName = realm.getName() + "-realm";
+            ClientModel masterAdminApp = adminRealm.getClientByClientId(masterAdminAppName);
 
-                // determine if Authorization Service needs to be enabled!
-                if (Arrays.stream(providedRoles).anyMatch(r -> r.contains("-authorization"))) {
-                    mtClientRepLocal.setAuthorizationServicesEnabled(TRUE);
+            // find service account user for this mt-client
+            UserModel saUser = getSession().users().getServiceAccount(multiTenantClient);
+
+            for (String roleName : providedRoles) {
+                // find the appropriate role from master admin app
+                RoleModel foundRole = masterAdminApp.getRole(roleName);
+
+                if (foundRole == null) {
+                    //log not found role!
+                    logger.errorf("multi-tenant client service account -> role with name '%s' not found!", roleName);
+                    continue;
                 }
+                // and role to the Service Account user of the master mt-client
+                saUser.grantRole(foundRole);
+            }
 
-                ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal); // , true);
-
-                // create mandatory resource-server client service account:
-                UserModel serviceAccount = session.users().getServiceAccount(realmClient);
-
-                if (serviceAccount == null) {
-                    new ClientManager(this).enableServiceAccount(realmClient);
-                }
-
-                // determine if Authorization Service needs to be enabled!
-                if (TRUE.equals(mtClientRepLocal.getAuthorizationServicesEnabled())) {
-                    AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
-
-                    ResourceServer resourceServer = RepresentationToModel.createResourceServer(realmClient, session, true);
-
-                    ResourceServerDefaultPermissionCreator resourceServerDefaultPermissionCreator
-                            = new ResourceServerDefaultPermissionCreator(session, authorization, resourceServer);
-
-                    resourceServerDefaultPermissionCreator.create(realmClient);
-
-                    ResourceServerRepresentation authorizationSettings = mtClientRepLocal.getAuthorizationSettings();
-
-                    if (authorizationSettings != null) {
-                        mtClientRepLocal.setClientId(realmClient.getId());
-                        RepresentationToModel.toModel(authorizationSettings, authorization);
-                    }
-
-                    // -> add [resource-server] suffix
-                    realmClient.setDescription(String.format("%s %s", instanceDescription, ClientManager.resourceServerDescriptionSuffix));
-                }
-
-                // find related master admin app by name "{realmName}-realm"
-                String masterAdminAppName = realm.getName() + "-realm";
-                ClientModel masterAdminApp = adminRealm.getClientByClientId(masterAdminAppName);
-
-                // find service account user for this mt-client
-                UserModel saUser = getSession().users().getServiceAccount(multiTenantClient);
-
-                for (String roleName : providedRoles) {
-                    // find the appropriate role from master admin app
-                    RoleModel foundRole = masterAdminApp.getRole(roleName);
-
-                    if (foundRole == null) {
-                        //log not found role!
-                        logger.errorf("multi-tenant client service account -> role with name '%s' not found!", roleName);
-                        continue;
-                    }
-                    // and role to the Service Account user of the master mt-client
-                    saUser.grantRole(foundRole);
-                }
-
-                // add created specialised scope to  the current mt-client
-                multiTenantClient.addClientScope(mtSpecScope, false);
-            });
-        }
+            // add created specialised scope to  the current mt-client
+            multiTenantClient.addClientScope(mtSpecScope, false);
+        });
     }
 
     // create specific mt-client related client scope with mappers in master
