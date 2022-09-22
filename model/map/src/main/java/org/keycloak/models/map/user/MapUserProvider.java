@@ -80,6 +80,7 @@ import static org.keycloak.models.map.common.AbstractMapProviderFactory.MapProvi
 import static org.keycloak.models.map.storage.QueryParameters.Order.ASCENDING;
 import static org.keycloak.models.map.storage.QueryParameters.withCriteria;
 import static org.keycloak.models.map.storage.criteria.DefaultModelCriteria.criteria;
+import static org.keycloak.utils.StreamsUtil.paginatedStream;
 
 public class MapUserProvider implements UserProvider.Streams {
 
@@ -695,6 +696,18 @@ public class MapUserProvider implements UserProvider.Streams {
 
         return tx.read(withCriteria(mcb).orderBy(SearchableFields.USERNAME, ASCENDING))
           .map(entityToAdapterFunc(realm));
+    }
+
+    @Override
+    public Stream<UserModel> searchForUserByUserAttributeStreamPaged(RealmModel realm, String attrName, String attrValue, int firstResult, int maxResults) {
+        LOG.tracef("searchForUserByUserAttributeStreamPaged(%s, %s, %s, %s, %s)%s", realm, attrName, attrValue, firstResult, maxResults, getShortStackTrace());
+        DefaultModelCriteria<UserModel> mcb = criteria();
+        mcb = mcb.compare(SearchableFields.REALM_ID, Operator.EQ, realm.getId())
+                 .compare(SearchableFields.ATTRIBUTE, Operator.EQ, attrName, attrValue);
+
+        return paginatedStream(tx.read(withCriteria(mcb)
+                .orderBy(SearchableFields.USERNAME, ASCENDING)), firstResult, maxResults)
+                .map(entityToAdapterFunc(realm));
     }
 
     @Override
