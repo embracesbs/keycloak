@@ -68,9 +68,7 @@ import org.keycloak.constants.EmbraceMultiTenantConstants;
 import org.keycloak.protocol.oidc.mappers.AudienceProtocolMapper;
 import org.keycloak.protocol.oidc.mappers.UserClientRoleMappingMapper;
 import org.keycloak.representations.idm.authorization.ResourceServerRepresentation;
-import org.keycloak.services.clientregistration.policy.DefaultClientRegistrationPolicies;
 import org.keycloak.services.util.ResourceServerDefaultPermissionCreator;
-import org.keycloak.utils.ReservedCharValidator;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -311,6 +309,8 @@ public class RealmManager {
             if (authSessions != null) {
                 authSessions.onRealmRemoved(realm);
             }
+
+            removeMultiTentantClient(realm);
 
           // Refresh periodic sync tasks for configured storageProviders
           LegacyStoreSyncEvent.fire(session, realm, true);
@@ -764,6 +764,30 @@ public class RealmManager {
 
     private void setupClientRegistrations(RealmModel realm) {
         DefaultClientRegistrationPolicies.addDefaultPolicies(realm);
+    }
+
+    private void removeMultiTentantClient(RealmModel realm) {
+        if (Config.getAdminRealm().equals(realm.getId())) return;
+
+        RealmModel adminRealm = model.getRealm(Config.getAdminRealm());
+        if (adminRealm == null) return;
+
+        removeMultiTenantClientSpecificClientScope(realm, adminRealm);
+    }
+
+    private void removeMultiTenantClientSpecificClientScope(RealmModel clientRealm, RealmModel adminRealm) {
+        String mtRealmSpecificScopeName = EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX + clientRealm.getName();
+
+        // check scope existence
+        Stream<ClientScopeModel> masterClientScopesCurrent = adminRealm.getClientScopesStream();
+        Optional<ClientScopeModel> clientScope = masterClientScopesCurrent.filter(scope -> scope.getName().equals(mtRealmSpecificScopeName)).findFirst();
+        if (!clientScope.isPresent()) {
+            logger.warnv("Multi-tenant client realm specific client scope {0} not found in {1} realm. Skipping scope removal!", mtRealmSpecificScopeName, clientRealm.getName());
+            return;
+        }
+
+        logger.infov("Multi-tenant client realm specific client scope {0} removed {1} realm!", mtRealmSpecificScopeName, clientRealm.getName());
+        adminRealm.removeClientScope(clientScope.get().getId());
     }
 
     private void setupMultiTenantClientRegistrations(RealmModel realm) {

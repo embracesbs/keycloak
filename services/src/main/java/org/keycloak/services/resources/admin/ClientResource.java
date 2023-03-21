@@ -272,9 +272,15 @@ public class ClientResource {
             throw new NotFoundException("Could not find client");
         }
 
-        // prevent deletion of multi-tenant resource servers (both master and realm instances)
         if (IsMultiTenantResourceServerClient()) {
-            throw new ErrorResponseException(Errors.NOT_ALLOWED, "Resource-server multi-tenant client deletion is forbidden!", Response.Status.FORBIDDEN);
+            if (new ClientManager(new RealmManager(session)).removeMultiTenantClientRegistrations(session, realm, client)) {
+                adminEvent.operation(OperationType.DELETE).resourcePath(session.getContext().getUri()).success();
+                return;
+            }
+            else {
+                throw new ErrorResponseException(OAuthErrorException.INVALID_REQUEST, "Could not delete client",
+                        Response.Status.BAD_REQUEST);
+            }
         }
 
         try {

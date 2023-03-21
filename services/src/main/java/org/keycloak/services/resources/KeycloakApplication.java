@@ -208,10 +208,13 @@ public class KeycloakApplication extends Application {
                     applianceBootstrap.createMasterRealm();
                 }
 
-                // once-run embrace data migration:
-                embraceMigration01(session);
-                embraceMigration02(session);
-                embraceMigration03(session);
+                String runEmbraceMIgrationsStr = System.getProperty("runEmbraceMigrations");
+                if(Boolean.parseBoolean(runEmbraceMIgrationsStr)) {
+                    // once-run embrace data migration:
+                    embraceMigration01(session);
+                    embraceMigration02(session);
+                    embraceMigration03(session);
+                }
             }
         });
 

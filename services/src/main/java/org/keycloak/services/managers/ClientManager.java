@@ -409,6 +409,24 @@ public class ClientManager {
         return TRUE;
     }
 
+    public boolean removeMultiTenantClientRegistrations(KeycloakSession session, RealmModel adminRealm, ClientModel mtClientCurrent) {
+        if (!isInternalClient(adminRealm.getName(), mtClientCurrent.getClientId()) && removeClient(adminRealm, mtClientCurrent)) {
+            List<RealmModel> realms = session.realms().getRealmsStream().collect(Collectors.toList());
+            for (RealmModel realmElement : realms.stream()
+                    .filter(realmElement -> !realmElement.getName().equals(Config.getAdminRealm())) // filter-out 'master'
+                    .collect(Collectors.toList()))
+            {
+                ClientModel realmClient = realmElement.getClientByClientId(mtClientCurrent.getClientId());
+                // get current realm mt-client instance
+                realmElement.removeClient(mtClientCurrent.getClientId());
+                removeClient(realmElement, realmClient);
+            }
+        } else {
+            return FALSE;
+        }
+
+        return TRUE;
+    }
     public Set<String> validateRegisteredNodes(ClientModel client) {
         Map<String, Integer> registeredNodes = client.getRegisteredNodes();
         if (registeredNodes == null || registeredNodes.isEmpty()) {
