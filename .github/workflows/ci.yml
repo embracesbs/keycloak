@@ -34,7 +34,7 @@ jobs:
       ci: ${{ steps.conditional.outputs.ci }}
       sssd: ${{ steps.conditional.outputs.sssd }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: conditional
         uses: ./.github/actions/conditional
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: conditional
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Build Keycloak
         uses: ./.github/actions/build-keycloak
@@ -56,7 +56,7 @@ jobs:
     needs: build
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: unit-test-setup
         name: Unit test setup
@@ -87,7 +87,7 @@ jobs:
         group: [1, 2, 3, 4, 5, 6]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -122,7 +122,7 @@ jobs:
     env:
       MAVEN_OPTS: -Xmx1024m
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: unit-test-setup
         name: Unit test setup
@@ -154,7 +154,7 @@ jobs:
         version: [11, 19]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -214,7 +214,7 @@ jobs:
         db: ${{ fromJson(needs.databases-new-store.outputs.db) }}
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -253,7 +253,7 @@ jobs:
         db: [postgres, mysql, oracle, mssql, mariadb]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -282,7 +282,7 @@ jobs:
     needs: build
     timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -310,7 +310,7 @@ jobs:
     env:
       MAVEN_OPTS: -Xmx1024m
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -337,7 +337,7 @@ jobs:
     needs: build
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Fake fips
         run: |
@@ -368,7 +368,7 @@ jobs:
         mode: [non-strict, strict]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Fake fips
         run: |
@@ -409,7 +409,7 @@ jobs:
         browser: [chrome, firefox]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -439,7 +439,7 @@ jobs:
         browser: [chrome, firefox]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -472,7 +472,7 @@ jobs:
         browser: [chrome, firefox]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -502,7 +502,7 @@ jobs:
     steps:
       - name: checkout
         if: ${{ needs.conditional.outputs.sssd == 'true' }}
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - id: integration-test-setup
         if: ${{ needs.conditional.outputs.sssd == 'true' }}
@@ -538,7 +538,7 @@ jobs:
         database: [postgres, mysql, oracle, mssql, mariadb]
       fail-fast: false
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: integration-test-setup
         name: Integration test setup
@@ -590,7 +590,7 @@ jobs:
       conclusion: ${{ steps.check.outputs.conclusion }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: check
         uses: ./.github/actions/checks-success
@@ -604,7 +604,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Check status
         uses: ./.github/actions/checks-job-pass

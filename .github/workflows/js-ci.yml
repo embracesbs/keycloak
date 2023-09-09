@@ -27,7 +27,7 @@ jobs:
     outputs:
       js-ci: ${{ steps.conditional.outputs.js }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: conditional
         uses: ./.github/actions/conditional
@@ -38,7 +38,7 @@ jobs:
     if: needs.conditional.outputs.js-ci == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Java
         uses: actions/setup-java@v3
@@ -67,7 +67,7 @@ jobs:
     env:
       WORKSPACE: "@keycloak/keycloak-admin-client"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ./.github/actions/pnpm-setup
         with:
@@ -87,7 +87,7 @@ jobs:
     env:
       WORKSPACE: keycloak-js
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ./.github/actions/pnpm-setup
         with:
@@ -104,7 +104,7 @@ jobs:
     env:
       WORKSPACE: keycloak-masthead
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ./.github/actions/pnpm-setup
         with:
@@ -124,7 +124,7 @@ jobs:
     env:
       WORKSPACE: ui-shared
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ./.github/actions/pnpm-setup
         with:
@@ -144,7 +144,7 @@ jobs:
     env:
       WORKSPACE: account-ui
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ./.github/actions/pnpm-setup
         with:
@@ -164,7 +164,7 @@ jobs:
     env:
       WORKSPACE: admin-ui
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: ./.github/actions/pnpm-setup
         with:
@@ -199,7 +199,7 @@ jobs:
           # Only test with Firefox on scheduled runs
           - browser: ${{ github.event_name != 'schedule' && 'firefox' || '' }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Google Chrome
         if: matrix.browser == 'chrome'
@@ -274,7 +274,7 @@ jobs:
     outputs:
       conclusion: ${{ steps.check.outputs.conclusion }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - id: check
         uses: ./.github/actions/checks-success
@@ -287,7 +287,7 @@ jobs:
       - check-set-status
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Check status
         uses: ./.github/actions/checks-job-pass
