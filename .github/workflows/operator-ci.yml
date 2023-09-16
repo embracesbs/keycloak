@@ -70,7 +70,7 @@ jobs:
           java-version: ${{ env.DEFAULT_JDK_VERSION }}
 
       - name: Setup Minikube-Kubernetes
-        uses: manusa/actions-setup-minikube@v2.7.2
+        uses: manusa/actions-setup-minikube@v2.9.0
         with:
           minikube version: ${{ env.MINIKUBE_VERSION }}
           kubernetes version: ${{ env.KUBERNETES_VERSION }}
@@ -117,7 +117,7 @@ jobs:
           java-version: ${{ env.DEFAULT_JDK_VERSION }}
 
       - name: Setup Minikube-Kubernetes
-        uses: manusa/actions-setup-minikube@v2.7.2
+        uses: manusa/actions-setup-minikube@v2.9.0
         with:
           minikube version: ${{ env.MINIKUBE_VERSION }}
           kubernetes version: ${{ env.KUBERNETES_VERSION }}
@@ -163,7 +163,7 @@ jobs:
           java-version: ${{ env.DEFAULT_JDK_VERSION }}
 
       - name: Setup Minikube-Kubernetes
-        uses: manusa/actions-setup-minikube@v2.7.2
+        uses: manusa/actions-setup-minikube@v2.9.0
         with:
           minikube version: ${{ env.MINIKUBE_VERSION }}
           kubernetes version: ${{ env.KUBERNETES_VERSION }}
