@@ -254,8 +254,8 @@ importers:
         specifier: ^18.2.6
         version: 18.2.6
       '@types/uuid':
-        specifier: ^9.0.2
-        version: 9.0.2
+        specifier: ^9.0.4
+        version: 9.0.4
       '@vitejs/plugin-react-swc':
         specifier: ^3.3.2
         version: 3.3.2(vite@4.3.9)
@@ -275,8 +275,8 @@ importers:
         specifier: ^10.9.1
         version: 10.9.1(@types/node@20.3.1)(typescript@5.1.3)
       uuid:
-        specifier: ^9.0.0
-        version: 9.0.0
+        specifier: ^9.0.1
+        version: 9.0.1
       vite:
         specifier: ^4.3.9
         version: 4.3.9(@types/node@20.3.1)
@@ -1983,8 +1983,8 @@ packages:
       '@types/jest': 29.5.2
     dev: true
 
-  /@types/uuid@9.0.2:
-    resolution: {integrity: sha512-kNnC1GFBLuhImSnV7w4njQkUiJi0ZXUycu1rUaouPqiKlXkh77JKgdRnTAp1x5eBwcIwbtI+3otwzuIDEuDoxQ==}
+  /@types/uuid@9.0.4:
+    resolution: {integrity: sha512-zAuJWQflfx6dYJM62vna+Sn5aeSWhh3OB+wfUEACNcqUSc0AGc5JKl+ycL1vrH7frGTXhJchYjE1Hak8L819dA==}
     dev: true
 
   /@types/yargs-parser@21.0.0:
@@ -6537,8 +6537,8 @@ packages:
     hasBin: true
     dev: true
 
-  /uuid@9.0.0:
-    resolution: {integrity: sha512-MXcSTerfPa4uqyzStbRoTgt5XIe3x5+42+q1sDuy3R5MDk66URdLMOZe5aPX/SQd+kuYAh0FdP/pO28IkQyTeg==}
+  /uuid@9.0.1:
+    resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
     hasBin: true
     dev: true
 
