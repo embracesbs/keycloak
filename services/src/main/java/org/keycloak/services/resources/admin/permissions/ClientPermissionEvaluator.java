@@ -45,6 +45,8 @@ public interface ClientPermissionEvaluator {
 
     boolean canList();
 
+    boolean canListMultitenantClientIds();
+    
     boolean canViewClientScopes();
 
     void requireList();
