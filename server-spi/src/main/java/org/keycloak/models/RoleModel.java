@@ -18,8 +18,10 @@
 package org.keycloak.models;
 
 import org.keycloak.provider.ProviderEvent;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -27,6 +29,10 @@ import java.util.stream.Stream;
  * @version $Revision: 1 $
  */
 public interface RoleModel {
+
+    // READ-ONLY ROLE RELATED ATTRIBUTES
+    String READ_ONLY_ROLE_ATTRIBUTE = "read.only";
+    String READ_ONLY_ROLE_REALMS_ATTRIBUTE = "read.only.explicit.realms";
 
     interface RoleNameChangeEvent extends ProviderEvent {
         RealmModel getRealm();
@@ -100,4 +106,22 @@ public interface RoleModel {
     Stream<String> getAttributeStream(String name);
 
     Map<String, List<String>> getAttributes();
+
+    default boolean isReadOnly() {
+        String readOnlyRoleAttribute = getFirstAttribute(READ_ONLY_ROLE_ATTRIBUTE);
+        if (readOnlyRoleAttribute != null) {
+            return Boolean.parseBoolean(readOnlyRoleAttribute);
+        }
+        return Boolean.FALSE;
+    }
+
+    default String[] getReadOnlyRoleRealms() {
+        List<String> multiTenantAttributes = getAttributeStream(READ_ONLY_ROLE_REALMS_ATTRIBUTE).collect(Collectors.toList());
+        if (multiTenantAttributes != null && multiTenantAttributes.size() > 0) {
+            String[] splitter = multiTenantAttributes.get(0).split(",");
+            Arrays.stream(splitter).map(String::trim).toArray(unused -> splitter);
+            return splitter;
+        }
+        return new String[0];
+    }
 }
