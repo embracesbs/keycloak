@@ -67,6 +67,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import java.util.Arrays;
+import org.apache.commons.lang.ArrayUtils;
+import org.jboss.logging.Logger;
+import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;
+import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_REALMS_ATTRIBUTE;
+
 /**
  * @resource Roles
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -74,6 +80,7 @@ import java.util.stream.Stream;
  */
 @Extension(name = KeycloakOpenAPI.Profiles.ADMIN, value = "")
 public class RoleContainerResource extends RoleResource {
+    protected static final Logger logger = Logger.getLogger(RoleContainerResource.class);
     private final RealmModel realm;
     protected AdminPermissionEvaluator auth;
 
@@ -160,6 +167,15 @@ public class RoleContainerResource extends RoleResource {
             } else {
                 adminEvent.resource(ResourceType.REALM_ROLE);
             }
+            
+            // readonly-role related registrations
+            if (!role.isClientRole() && isReadOnly(rep)) {
+                role.setSingleAttribute(READ_ONLY_ROLE_ATTRIBUTE, Boolean.TRUE.toString());
+                if (ArrayUtils.isNotEmpty(getReadOnlyRoleRealmsFilter(rep))) {
+                    role.setAttribute(READ_ONLY_ROLE_REALMS_ATTRIBUTE, Arrays.asList(getReadOnlyRoleRealmsFilter(rep)));
+                }
+                setupReadonlyRoleRegistrations(session, role, rep);
+            }
 
             // Handling of nested composite roles for KEYCLOAK-12754
             if (rep.isComposite() && rep.getComposites() != null) {
@@ -199,6 +215,14 @@ public class RoleContainerResource extends RoleResource {
                         clientRoles.stream().peek(auth.roles()::requireMapComposite).forEach(role::addCompositeRole);
                     }
                 }
+            }
+
+            // readonly-role related registrations
+            if (!role.isClientRole() && isReadOnly(rep)) {
+                role.setSingleAttribute(READ_ONLY_ROLE_ATTRIBUTE, Boolean.TRUE.toString());
+                if (ArrayUtils.isNotEmpty(getReadOnlyRoleRealmsFilter(rep)))
+                    role.setAttribute(READ_ONLY_ROLE_REALMS_ATTRIBUTE, Arrays.asList(getReadOnlyRoleRealmsFilter(rep)));
+                setupReadonlyRoleRegistrations(session, role, rep);
             }
 
             adminEvent.operation(OperationType.CREATE).resourcePath(uriInfo, role.getName()).representation(rep).success();
