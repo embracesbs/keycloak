@@ -69,6 +69,7 @@ import org.keycloak.services.resources.admin.permissions.AdminPermissions;
 import org.keycloak.services.validation.Validation;
 import org.keycloak.sessions.AuthenticationSessionModel;
 import org.keycloak.sessions.RootAuthenticationSessionModel;
+import org.keycloak.util.JsonSerialization;
 import org.keycloak.util.TokenUtil;
 
 import static org.keycloak.authentication.authenticators.util.AuthenticatorUtils.getDisabledByBruteForceEventError;
@@ -76,6 +77,7 @@ import static org.keycloak.models.ImpersonationSessionNote.IMPERSONATOR_CLIENT;
 import static org.keycloak.models.ImpersonationSessionNote.IMPERSONATOR_ID;
 import static org.keycloak.models.ImpersonationSessionNote.IMPERSONATOR_USERNAME;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -86,7 +88,6 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
 import jakarta.ws.rs.core.Response;
-import java.util.UUID;
 
 /**
  * Default token exchange implementation
@@ -505,6 +506,7 @@ public class DefaultTokenExchangeProvider implements TokenExchangeProvider {
             event.error(Errors.INVALID_ISSUER);
             throw new CorsErrorResponseException(cors, Errors.INVALID_ISSUER, "Invalid " + OAuth2Constants.SUBJECT_ISSUER + " parameter", Response.Status.BAD_REQUEST);
         }
+        context.setToken(subjectToken);
 
         UserModel user = importUserFromExternalIdentity(context);
 
@@ -536,6 +538,8 @@ public class DefaultTokenExchangeProvider implements TokenExchangeProvider {
             IdentityProviderMapper target = (IdentityProviderMapper)sessionFactory.getProviderFactory(IdentityProviderMapper.class, mapper.getIdentityProviderMapper());
             target.preprocessFederatedIdentity(session, realm, mapper, context);
         }
+
+        setContextIdToOid(context);
 
         UserModel user = null;
         if (! context.getIdpConfig().isTransientUsers()) {
@@ -638,6 +642,43 @@ public class DefaultTokenExchangeProvider implements TokenExchangeProvider {
         for (Map.Entry<String, String> attr : clientAuthAttributes.entrySet()) {
             userSession.setNote(attr.getKey(), attr.getValue());
         }
+    }
+
+    private void setContextIdToOid(BrokeredIdentityContext context) {
+        if (context.getToken() == null)
+            return;
+
+        AccessToken accessToken = null;
+        try {
+            accessToken = parseToken(context.getToken(), AccessToken.class);
+        } catch (IOException e) {
+            event.detail(Details.REASON, "unable to parse subject_token as access token");
+            event.error(Errors.INVALID_TOKEN);
+            throw new CorsErrorResponseException(cors, OAuthErrorException.INVALID_TOKEN, "Invalid Token", Response.Status.BAD_REQUEST);
+        }
+
+        boolean issuerIsMicrosoft = accessToken.getIssuer().startsWith("https://sts.windows.net/")
+                || accessToken.getIssuer().startsWith("https://login.microsoftonline.com/");
+        if (!issuerIsMicrosoft)
+            return;
+
+        String oid = (String)accessToken.getOtherClaims().getOrDefault("oid", null);
+        if (oid == null)
+            return;
+
+        context.setId(oid);
+    }
+
+    // Just decode token without any verifications
+    private <T> T parseToken(String encoded, Class<T> clazz) throws IOException {
+        if (encoded == null)
+            return null;
+
+        String[] parts = encoded.split("\\.");
+        if (parts.length < 2 || parts.length > 3) throw new IllegalArgumentException("Parsing error");
+
+        byte[] bytes = Base64Url.decode(parts[1]);
+        return JsonSerialization.readValue(bytes, clazz);
     }
 
 }
