@@ -975,17 +975,29 @@ public class JpaUserProvider implements UserProvider, UserCredentialStore {
                     break;
                 case UserModel.IDP_ALIAS:
                     if (federatedIdentitiesJoin == null) {
-                        federatedIdentitiesJoin = root.join("federatedIdentities");
+                        federatedIdentitiesJoin = root.join("federatedIdentities", JoinType.LEFT);
                     }
                     predicates.add(builder.equal(federatedIdentitiesJoin.get("identityProvider"), value));
                     break;
                 case UserModel.IDP_USER_ID:
                     if (federatedIdentitiesJoin == null) {
-                        federatedIdentitiesJoin = root.join("federatedIdentities");
+                        federatedIdentitiesJoin = root.join("federatedIdentities", JoinType.LEFT);
                     }
                     predicates.add(builder.equal(federatedIdentitiesJoin.get("userId"), value));
                     break;
                 case UserModel.EXACT:
+                    break;
+                case UserModel.EXCLUDE_SYSTEM_USERS:
+                    if (Boolean.parseBoolean(value)) {
+                        if (federatedIdentitiesJoin == null) {
+                            federatedIdentitiesJoin = root.join("federatedIdentities", JoinType.LEFT);
+                        }
+                        Predicate isNull = builder.isNull(federatedIdentitiesJoin.get("userName"));
+                        Predicate notSystemUser = builder.notLike(federatedIdentitiesJoin.get("userName"), "service-account-%");
+                        predicates.add(builder.or(isNull, notSystemUser));
+
+                        predicates.add(builder.notLike(root.get("username"), "service-account-%"));
+                    }
                     break;
                 // All unknown attributes will be assumed as custom attributes
                 default:

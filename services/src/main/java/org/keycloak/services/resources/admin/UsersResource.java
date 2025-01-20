@@ -287,7 +287,9 @@ public class UsersResource {
             @Parameter(description = "Boolean representing if user is enabled or not") @QueryParam("enabled") Boolean enabled,
             @Parameter(description = "Boolean which defines whether brief representations are returned (default: false)") @QueryParam("briefRepresentation") Boolean briefRepresentation,
             @Parameter(description = "Boolean which defines whether the params \"last\", \"first\", \"email\" and \"username\" must match exactly") @QueryParam("exact") Boolean exact,
-            @Parameter(description = "A query to search for custom attributes, in the format 'key1:value2 key2:value2'") @QueryParam("q") String searchQuery) {
+            @Parameter(description = "A query to search for custom attributes, in the format 'key1:value2 key2:value2'") @QueryParam("q") String searchQuery,
+            @Parameter(description = "Boolean which defines whether system users (service accounts) are returned. By default they are.") @QueryParam("excludeSystemUsers") Boolean excludeSystemUsers) {
+
         UserPermissionEvaluator userPermissionEvaluator = auth.users();
 
         userPermissionEvaluator.requireQuery();
@@ -313,11 +315,15 @@ public class UsersResource {
                 if (enabled != null) {
                     attributes.put(UserModel.ENABLED, enabled.toString());
                 }
+                if (excludeSystemUsers != null) {
+                    attributes.put(UserModel.EXCLUDE_SYSTEM_USERS, excludeSystemUsers.toString());
+                }
                 return searchForUser(attributes, realm, userPermissionEvaluator, briefRepresentation, firstResult,
                         maxResults, false);
             }
         } else if (last != null || first != null || email != null || username != null || emailVerified != null
-                || idpAlias != null || idpUserId != null || enabled != null || exact != null || !searchAttributes.isEmpty()) {
+                || idpAlias != null || idpUserId != null || enabled != null || exact != null
+                || excludeSystemUsers != null || !searchAttributes.isEmpty()) {
                     Map<String, String> attributes = new HashMap<>();
                     if (last != null) {
                         attributes.put(UserModel.LAST_NAME, last);
@@ -345,6 +351,9 @@ public class UsersResource {
                     }
                     if (exact != null) {
                         attributes.put(UserModel.EXACT, exact.toString());
+                    }
+                    if (excludeSystemUsers != null) {
+                        attributes.put(UserModel.EXCLUDE_SYSTEM_USERS, excludeSystemUsers.toString());
                     }
 
                     attributes.putAll(searchAttributes);
