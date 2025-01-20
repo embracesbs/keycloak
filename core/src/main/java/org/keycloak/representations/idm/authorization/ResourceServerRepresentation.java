@@ -16,6 +16,7 @@
  */
 package org.keycloak.representations.idm.authorization;
 
+import java.io.Serializable;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -23,7 +24,7 @@ import static java.util.Collections.emptyList;
 /**
  * @author <a href="mailto:psilva@redhat.com">Pedro Igor</a>
  */
-public class ResourceServerRepresentation {
+public class ResourceServerRepresentation implements Serializable {
 
     private String id;
 

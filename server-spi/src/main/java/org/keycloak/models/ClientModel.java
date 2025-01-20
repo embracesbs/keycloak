@@ -17,6 +17,7 @@
 
 package org.keycloak.models;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -40,6 +41,10 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
     String POLICY_URI ="policyUri";
     String TOS_URI ="tosUri";
     String TYPE = "type";
+
+    // MULTI-TENANCY RELATED ATTRIBUTES
+    String MULTI_TENANT = "multi.tenant.client";
+    String MULTI_TENANT_SERVICE_ACCOUNT_ROLES = "multi.tenant.service.account.roles";
 
     interface ClientCreationEvent extends ProviderEvent {
         ClientModel getCreatedClient();
@@ -297,5 +302,24 @@ public interface ClientModel extends ClientScopeModel, RoleContainerModel,  Prot
             consentScreenText = getClientId();
         }
         return consentScreenText;
+    }
+
+    default boolean getMultiTenant() {
+        String multiTenantAttribute = getAttribute(MULTI_TENANT);
+        return Boolean.parseBoolean(multiTenantAttribute);
+    }
+
+    default String[] getMultiTenantServiceAccountRoles() {
+        return getMultiTenantServiceAccountRoles(getAttributes());
+    }
+
+    default String[] getMultiTenantServiceAccountRoles(Map<String, String> attributes) {
+        if (attributes == null || !attributes.containsKey(MULTI_TENANT_SERVICE_ACCOUNT_ROLES))
+            return new String[0];
+
+        String multiTenantAttribute = attributes.get(MULTI_TENANT_SERVICE_ACCOUNT_ROLES);
+        String[] splitter = multiTenantAttribute.split(",");
+        Arrays.stream(splitter).map(String::trim).toArray(unused -> splitter);
+        return splitter;
     }
 }
