@@ -26,6 +26,7 @@ import org.keycloak.models.ClientProviderFactory;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.KeycloakSessionFactory;
 import org.keycloak.models.RealmModel;
+import org.keycloak.models.ClientModel;
 import org.keycloak.models.jpa.entities.RealmAttributes;
 import org.keycloak.protocol.saml.SamlConfigAttributes;
 
@@ -47,7 +48,8 @@ public class JpaClientProviderFactory implements ClientProviderFactory {
         "saml_idp_initiated_sso_url_name",
         SamlConfigAttributes.SAML_ARTIFACT_BINDING_IDENTIFIER,
         "jwt.credential.issuer",
-        "jwt.credential.sub"
+        "jwt.credential.sub",
+        ClientModel.MULTI_TENANT
     );
 
     @Override
