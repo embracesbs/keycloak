@@ -17,6 +17,7 @@
 
 package org.keycloak.representations.idm;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +27,7 @@ import org.keycloak.representations.idm.authorization.ResourceServerRepresentati
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
  * @version $Revision: 1 $
  */
-public class ClientRepresentation {
+public class ClientRepresentation implements Serializable {
     protected String id;
     protected String clientId;
     protected String name;
