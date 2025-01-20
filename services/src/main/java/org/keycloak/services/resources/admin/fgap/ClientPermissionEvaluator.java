@@ -80,8 +80,10 @@ public interface ClientPermissionEvaluator {
 
     /**
      * Returns {@code true} if {@link #canView()} returns {@code true}.
-     */
+     */    
     boolean canViewClientScopes();
+
+    boolean canListMultitenantClientIds();
 
     /**
      * Throws ForbiddenException if {@link #canList()} returns {@code false}.
