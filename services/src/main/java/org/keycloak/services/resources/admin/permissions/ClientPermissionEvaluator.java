@@ -82,6 +82,9 @@ public interface ClientPermissionEvaluator {
      */
     boolean canViewClientScopes();
 
+
+    boolean canListMultitenantClientIds();
+    
     /**
      * Throws ForbiddenException if {@link #canList()} returns {@code false}.
      */
