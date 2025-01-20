@@ -802,6 +802,7 @@ public class ModelToRepresentation {
 
             if (resourceServer != null) {
                 rep.setAuthorizationServicesEnabled(true);
+                rep.setAuthorizationSettings(toRepresentation(resourceServer, clientModel));
             }
         }
 
@@ -1092,9 +1093,12 @@ public class ModelToRepresentation {
         representation.setLogic(policy.getLogic());
 
         if (allFields) {
+
+            //Embrace modification, remove deep copy
             representation.setResourcesData(policy.getResources().stream()
-                    .map(resource -> toRepresentation(resource, policy.getResourceServer(), authorization, true))
+                    .map(resource -> toRepresentation(resource, policy.getResourceServer(), authorization))
                     .collect(Collectors.toSet()));
+
             representation.setScopesData(policy.getScopes().stream().map(
                     resource -> toRepresentation(resource)).collect(Collectors.toSet()));
         }
