@@ -184,10 +184,6 @@ public abstract class KeycloakApplication extends Application {
                     } finally {
                         ExportImportConfig.setSingleTransaction(false);
                     }
-
-                    // these are also running in the initial bootstrap transaction - if there is a problem, the server won't be initialized at all
-                    exportImportManager.runImport();
-                    createTemporaryAdmin(session);
                 }
 
                 String runEmbraceMigrationsStr = System.getProperty("runEmbraceMigrations");
