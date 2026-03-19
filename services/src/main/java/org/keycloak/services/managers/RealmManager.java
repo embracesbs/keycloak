@@ -70,6 +70,7 @@ import org.keycloak.services.clientregistration.policy.DefaultClientRegistration
 
 import java.util.*;
 
+import org.keycloak.email.EmailException;
 import org.keycloak.utils.ReservedCharValidator;
 import org.keycloak.utils.SMTPUtil;
 import org.keycloak.utils.StringUtil;
