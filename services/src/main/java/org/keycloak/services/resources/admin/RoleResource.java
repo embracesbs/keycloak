@@ -43,6 +43,7 @@ import org.keycloak.models.AdminRoles;
 import org.apache.commons.lang.ArrayUtils;
 import org.keycloak.Config;
 import java.util.stream.Stream;
+import java.util.stream.Collectors;
 import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;
 import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_REALMS_ATTRIBUTE;
 
