@@ -75,7 +75,6 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import java.util.Arrays;
-import org.apache.commons.lang.ArrayUtils;
 import org.jboss.logging.Logger;
 import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;
 import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_REALMS_ATTRIBUTE;
@@ -190,7 +189,7 @@ public class RoleContainerResource extends RoleResource {
             // readonly-role related registrations
             if (!role.isClientRole() && isReadOnly(rep)) {
                 role.setSingleAttribute(READ_ONLY_ROLE_ATTRIBUTE, Boolean.TRUE.toString());
-                if (ArrayUtils.isNotEmpty(getReadOnlyRoleRealmsFilter(rep))) {
+                if (getReadOnlyRoleRealmsFilter(rep).length > 0) {
                     role.setAttribute(READ_ONLY_ROLE_REALMS_ATTRIBUTE, Arrays.asList(getReadOnlyRoleRealmsFilter(rep)));
                 }
                 setupReadonlyRoleRegistrations(session, role, rep);
@@ -239,7 +238,7 @@ public class RoleContainerResource extends RoleResource {
             // readonly-role related registrations
             if (!role.isClientRole() && isReadOnly(rep)) {
                 role.setSingleAttribute(READ_ONLY_ROLE_ATTRIBUTE, Boolean.TRUE.toString());
-                if (ArrayUtils.isNotEmpty(getReadOnlyRoleRealmsFilter(rep)))
+                if (getReadOnlyRoleRealmsFilter(rep).length > 0)
                     role.setAttribute(READ_ONLY_ROLE_REALMS_ATTRIBUTE, Arrays.asList(getReadOnlyRoleRealmsFilter(rep)));
                 setupReadonlyRoleRegistrations(session, role, rep);
             }

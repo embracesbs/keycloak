@@ -40,7 +40,6 @@ import java.util.stream.Stream;
 import java.util.Arrays;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.AdminRoles;
-import org.apache.commons.lang.ArrayUtils;
 import org.keycloak.Config;
 import java.util.stream.Stream;
 import static org.keycloak.models.RoleModel.READ_ONLY_ROLE_ATTRIBUTE;
@@ -228,7 +227,7 @@ public abstract class RoleResource {
         if (readonlyAttr == null) return Boolean.FALSE;
 
         String[] readOnlyRoleAttribute = readonlyAttr.toArray(new String[0]);
-        if (ArrayUtils.isNotEmpty(readOnlyRoleAttribute)) {
+        if (readOnlyRoleAttribute.length > 0) {
             return Boolean.parseBoolean(readOnlyRoleAttribute[0]);
         }
         return Boolean.FALSE;
@@ -237,15 +236,15 @@ public abstract class RoleResource {
     protected String[] getReadOnlyRoleRealmsFilter(RoleRepresentation rep) {
         Map<String, List<String>> attributes = rep.getAttributes();
         if (attributes == null || !attributes.containsKey(READ_ONLY_ROLE_REALMS_ATTRIBUTE))
-            return ArrayUtils.EMPTY_STRING_ARRAY;
+            return new String[0];
 
         List<String> filterRealms = attributes.get(READ_ONLY_ROLE_REALMS_ATTRIBUTE);
-        if (filterRealms == null) return ArrayUtils.EMPTY_STRING_ARRAY;
+        if (filterRealms == null) return new String[0];
 
         String[] readOnlyRoleRealms = filterRealms.toArray(new String[0]);
-        if (ArrayUtils.isNotEmpty(readOnlyRoleRealms)) {
+        if (readOnlyRoleRealms.length > 0) {
             return readOnlyRoleRealms;
         }
-        return ArrayUtils.EMPTY_STRING_ARRAY;
+        return new String[0];
     }
 }
