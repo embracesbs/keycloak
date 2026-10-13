@@ -417,6 +417,10 @@ public class ClientManager {
                     .collect(Collectors.toList()))
             {
                 ClientModel realmClient = realmElement.getClientByClientId(mtClientCurrent.getClientId());
+                // A tenant may have deleted its own copy already.
+                if (realmClient == null) {
+                    continue;
+                }
                 // get current realm mt-client instance
                 realmElement.removeClient(mtClientCurrent.getClientId());
                 removeClient(realmElement, realmClient);
