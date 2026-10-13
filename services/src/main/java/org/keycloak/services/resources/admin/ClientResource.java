@@ -293,7 +293,8 @@ public class ClientResource {
 
         AdminPermissionsSchema.SCHEMA.throwExceptionIfAdminPermissionClient(session, client.getId());
         
-        if (IsMultiTenantResourceServerClient()) {
+        // Only master owns a multi-tenant client; a tenant's copy is deleted in that realm only, as for create and update.
+        if (IsMultiTenantResourceServerClient() && realm.getName().equals(Config.getAdminRealm())) {
             if (new ClientManager(new RealmManager(session)).removeMultiTenantClientRegistrations(session, realm, client)) {
                 adminEvent.operation(OperationType.DELETE).resourcePath(session.getContext().getUri()).success();
                 return;
