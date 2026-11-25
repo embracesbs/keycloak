@@ -248,14 +248,30 @@ public class RealmManager {
             adminCli.setName("${client_" + Constants.ADMIN_CLI_CLIENT_ID + "}");
             adminCli.setEnabled(true);
             adminCli.setAlwaysDisplayInConsole(false);
+            adminCli.setPublicClient(false);
             adminCli.setFullScopeAllowed(true);
             adminCli.setStandardFlowEnabled(false);
-            adminCli.setDirectAccessGrantsEnabled(true);
+            adminCli.setImplicitFlowEnabled(false);
+            adminCli.setDirectAccessGrantsEnabled(false);
             adminCli.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
             adminCli.setAttribute(Constants.USE_LIGHTWEIGHT_ACCESS_TOKEN_ENABLED, "true");
-        }
 
+            if (realm.getName().equals(Config.getAdminRealm())) {
+                // setup service account ...
+                adminCli.setServiceAccountsEnabled(true);
+                UserModel serviceAccountUser = session.users().getServiceAccount(adminCli);
+                if (serviceAccountUser == null) {
+                    new ClientManager(this).enableServiceAccount(adminCli);
+                }
+                serviceAccountUser = session.users().getServiceAccount(adminCli);
+
+                // add service account role 'admin'
+                RoleModel adminRole = realm.getRole(AdminRoles.ADMIN);
+                serviceAccountUser.grantRole(adminRole);
+            }
+        }
     }
+
     public void addQueryCompositeRoles(ClientModel realmAccess) {
         RoleModel queryClients = realmAccess.getRole(AdminRoles.QUERY_CLIENTS);
         RoleModel queryUsers = realmAccess.getRole(AdminRoles.QUERY_USERS);
