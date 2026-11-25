@@ -40,6 +40,7 @@ import org.keycloak.models.AccountRoles;
 import org.keycloak.models.AdminRoles;
 import org.keycloak.models.BrowserSecurityHeaders;
 import org.keycloak.models.ClientModel;
+import org.keycloak.models.ClientScopeModel;
 import org.keycloak.models.Constants;
 import org.keycloak.models.ImpersonationConstants;
 import org.keycloak.models.KeycloakSession;
@@ -59,6 +60,7 @@ import org.keycloak.models.utils.DefaultKeyProviders;
 import org.keycloak.models.utils.DefaultRequiredActions;
 import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.models.utils.RepresentationToModel;
+import org.keycloak.models.utils.ModelToRepresentation;
 import org.keycloak.protocol.ProtocolMapperUtils;
 import org.keycloak.protocol.oidc.OIDCConfigAttributes;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
@@ -75,12 +77,22 @@ import org.keycloak.services.clientregistration.policy.DefaultClientRegistration
 import org.keycloak.sessions.AuthenticationSessionProvider;
 import org.keycloak.storage.StoreMigrateRepresentationEvent;
 import org.keycloak.storage.StoreSyncEvent;
+import java.util.*;
 import org.keycloak.utils.ReservedCharValidator;
 import org.keycloak.utils.SMTPUtil;
 import org.keycloak.utils.StringUtil;
 
 import static org.keycloak.constants.OID4VCIConstants.CREDENTIAL_OFFER_CREATE;
 import static org.keycloak.models.Constants.CREATE_DEFAULT_CLIENT_SCOPES;
+import org.jboss.logging.Logger;
+import org.keycloak.authorization.AuthorizationProvider;
+import org.keycloak.constants.EmbraceMultiTenantConstants;
+import org.keycloak.protocol.oidc.mappers.AudienceProtocolMapper;
+import org.keycloak.protocol.oidc.mappers.UserClientRoleMappingMapper;
+import org.keycloak.representations.idm.authorization.ResourceServerRepresentation;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import static java.lang.Boolean.TRUE;
 
 /**
  * Per request object
@@ -89,6 +101,7 @@ import static org.keycloak.models.Constants.CREATE_DEFAULT_CLIENT_SCOPES;
  * @version $Revision: 1 $
  */
 public class RealmManager {
+    private static final Logger logger = Logger.getLogger(RealmManager.class);
 
     protected KeycloakSession session;
     protected RealmProvider model;
@@ -151,6 +164,10 @@ public class RealmManager {
         createDefaultClientScopes(realm);
         setupAuthorizationServices(realm);
         setupClientRegistrations(realm);
+
+        // MULTI_TENANT CLIENT
+        setupMultiTenantClientRegistrations(realm);
+
         session.clientPolicy().setupClientPoliciesOnCreatedRealm(realm);
 
         fireRealmPostCreate(realm);
@@ -314,6 +331,8 @@ public class RealmManager {
                 authSessions.onRealmRemoved(realm);
             }
 
+            removeMultiTentantClient(realm);
+
             KeycloakSessionFactory sessionFactory = session.getKeycloakSessionFactory();
             session.getTransactionManager().enlistAfterCompletion(new AbstractKeycloakTransaction() {
                 @Override
@@ -377,11 +396,11 @@ public class RealmManager {
         if (realm.getName().equals(Config.getAdminRealm())) {
             adminRealm = realm;
 
-            adminRole = realm.addRole(AdminRoles.ADMIN);
+            adminRole = adminRealm.addRole(AdminRoles.ADMIN);
 
-            RoleModel createRealmRole = realm.addRole(AdminRoles.CREATE_REALM);
-            adminRole.addCompositeRole(createRealmRole);
+            RoleModel createRealmRole = adminRealm.addRole(AdminRoles.CREATE_REALM);
             createRealmRole.setDescription("${role_" + AdminRoles.CREATE_REALM + "}");
+            adminRole.addCompositeRole(createRealmRole);
         } else {
             adminRealm = model.getRealmByName(Config.getAdminRealm());
             adminRole = adminRealm.getRole(AdminRoles.ADMIN);
@@ -398,6 +417,15 @@ public class RealmManager {
             role.setDescription("${role_"+r+"}");
             adminRole.addCompositeRole(role);
         }
+
+        if (adminRealm.equals(realm)) {
+            // add embrace custom query-multitenant-client-ids role to master admin app
+            String queryClientIds = AdminRoles.QUERY_MULTITENANT_CLIENT_IDS;
+            RoleModel queryClientIdsRole = realmAdminApp.addRole(queryClientIds);
+            queryClientIdsRole.setDescription("${role_" + queryClientIds + "}");
+            adminRole.addCompositeRole(queryClientIdsRole);
+        }
+
         addQueryCompositeRoles(realmAdminApp);
     }
 
@@ -711,6 +739,8 @@ public class RealmManager {
 
             session.clientPolicy().updateRealmModelFromRepresentation(realm, rep);
 
+            setupMultiTenantClientRegistrations(realm);
+
             fireRealmPostCreate(realm);
         } catch (EmailException e) {
             throw new BadRequestException(e.getMessage());
@@ -833,6 +863,159 @@ public class RealmManager {
 
     private void setupClientRegistrations(RealmModel realm) {
         DefaultClientRegistrationPolicies.addDefaultPolicies(realm);
+    }
+
+    private void removeMultiTentantClient(RealmModel realm) {
+        if (Config.getAdminRealm().equals(realm.getId())) return;
+
+        RealmModel adminRealm = model.getRealm(Config.getAdminRealm());
+        if (adminRealm == null) return;
+
+        removeMultiTenantClientSpecificClientScope(realm, adminRealm);
+    }
+
+    private void removeMultiTenantClientSpecificClientScope(RealmModel clientRealm, RealmModel adminRealm) {
+        String mtRealmSpecificScopeName = EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX + clientRealm.getName();
+
+        // check scope existence
+        Stream<ClientScopeModel> masterClientScopesCurrent = adminRealm.getClientScopesStream();
+        Optional<ClientScopeModel> clientScope = masterClientScopesCurrent.filter(scope -> scope.getName().equals(mtRealmSpecificScopeName)).findFirst();
+        if (!clientScope.isPresent()) {
+            logger.warnv("Multi-tenant client realm specific client scope {0} not found in {1} realm. Skipping scope removal!", mtRealmSpecificScopeName, clientRealm.getName());
+            return;
+        }
+
+        logger.infov("Multi-tenant client realm specific client scope {0} removed {1} realm!", mtRealmSpecificScopeName, clientRealm.getName());
+        adminRealm.removeClientScope(clientScope.get().getId());
+    }
+
+    private void setupMultiTenantClientRegistrations(RealmModel realm) {
+        // skip for admin (master) realm
+        if (Config.getAdminRealm().equals(realm.getId())) return;
+
+        RealmModel adminRealm = model.getRealm(Config.getAdminRealm());
+        if (adminRealm == null) return;
+
+        ClientScopeModel mtSpecScope = setupMultiTenantClientSpecificClientScope(realm, adminRealm);
+
+        // fetch multi-tenant clients from master
+        Map<String, String> attributes = Collections.singletonMap(ClientModel.MULTI_TENANT, TRUE.toString());
+        List<ClientModel> multiTenantMasterClients = session.clients().searchClientsByAttributes(adminRealm, attributes, 0, 200).collect(Collectors.toList());
+
+        multiTenantMasterClients.forEach(multiTenantClient -> {
+
+            ClientRepresentation adminMtClientRepresentation = ModelToRepresentation.toRepresentation(multiTenantClient, session);
+
+            ClientRepresentation mtClientRepLocal = ClientManager.deepCopy(adminMtClientRepresentation);
+
+            mtClientRepLocal.setId(null);
+            mtClientRepLocal.setProtocolMappers(null);
+            mtClientRepLocal.setDefaultClientScopes(null);
+            mtClientRepLocal.setOptionalClientScopes(null);
+            mtClientRepLocal.setServiceAccountsEnabled(true);
+
+            // set proper description:
+            // -> replace [multi-tenant] with [multi-tenant instance]
+            String instanceDescription = mtClientRepLocal.getDescription();
+            if (instanceDescription.contains(ClientManager.multiTenantDescriptionSuffix)) {
+                instanceDescription = instanceDescription.replace(ClientManager.multiTenantDescriptionSuffix, ClientManager.multiTenantInstanceDescriptionSuffix);
+            }
+
+            mtClientRepLocal.setDescription(instanceDescription);
+
+            // get service account roles from attributes
+            String[] providedRoles = multiTenantClient.getMultiTenantServiceAccountRoles();
+
+            // determine if Authorization Service needs to be enabled!
+            if (Arrays.stream(providedRoles).anyMatch(r -> r.contains("-authorization"))) {
+                mtClientRepLocal.setAuthorizationServicesEnabled(TRUE);
+            }
+
+            ClientModel realmClient = ClientManager.createClient(session, realm, mtClientRepLocal); // , true);
+
+            // create mandatory resource-server client service account:
+            UserModel serviceAccount = session.users().getServiceAccount(realmClient);
+
+            if (serviceAccount == null) {
+                new ClientManager(this).enableServiceAccount(realmClient);
+            }
+
+            // determine if Authorization Service needs to be enabled!
+            if (TRUE.equals(mtClientRepLocal.getAuthorizationServicesEnabled())) {
+                AuthorizationProvider authorization = session.getProvider(AuthorizationProvider.class);
+
+                RepresentationToModel.createResourceServer(realmClient, session, true);
+
+                ResourceServerRepresentation authorizationSettings = mtClientRepLocal.getAuthorizationSettings();
+
+                if (authorizationSettings != null) {
+                    mtClientRepLocal.setClientId(realmClient.getId());
+                    RepresentationToModel.toModel(authorizationSettings, authorization, realmClient);
+                }
+
+                // -> add [resource-server] suffix
+                realmClient.setDescription(String.format("%s %s", instanceDescription, ClientManager.resourceServerDescriptionSuffix));
+            }
+
+            // find related master admin app by name "{realmName}-realm"
+            String masterAdminAppName = realm.getName() + "-realm";
+            ClientModel masterAdminApp = adminRealm.getClientByClientId(masterAdminAppName);
+
+            // find service account user for this mt-client
+            UserModel saUser = getSession().users().getServiceAccount(multiTenantClient);
+
+            for (String roleName : providedRoles) {
+                // find the appropriate role from master admin app
+                RoleModel foundRole = masterAdminApp.getRole(roleName);
+
+                if (foundRole == null) {
+                    //log not found role!
+                    logger.errorf("multi-tenant client service account -> role with name '%s' not found!", roleName);
+                    continue;
+                }
+                // and role to the Service Account user of the master mt-client
+                saUser.grantRole(foundRole);
+            }
+
+            // add created specialised scope to  the current mt-client
+            multiTenantClient.addClientScope(mtSpecScope, false);
+        });
+    }
+
+    // create specific mt-client related client scope with mappers in master
+    // create scope: 'identity-provider-user-[realm_name]'
+    public static ClientScopeModel setupMultiTenantClientSpecificClientScope(RealmModel clientRealm, RealmModel adminRealm) {
+
+        String mtRealmSpecificScopeName = EmbraceMultiTenantConstants.MULTI_TENANT_SPECIFIC_CLIENT_SCOPE_PREFIX + clientRealm.getName();
+
+        // check scope existence
+        Stream<ClientScopeModel> masterClientScopesCurrent = adminRealm.getClientScopesStream();
+        if (masterClientScopesCurrent.map(ClientScopeModel::getName).collect(Collectors.toList()).contains(mtRealmSpecificScopeName)) {
+            logger.warnv("Multi-tenant client realm specific client scope {0} found in {1} realm. Skipping scope creation!", mtRealmSpecificScopeName, clientRealm.getName());
+            return null;
+        }
+
+        ClientScopeModel mtSpecScope = adminRealm.addClientScope(mtRealmSpecificScopeName);
+        mtSpecScope.setDescription(String.format("Identity provider multi-realm scope - %s realm", clientRealm.getName()));
+        mtSpecScope.setDisplayOnConsentScreen(false);
+        mtSpecScope.setIncludeInTokenScope(true);
+        mtSpecScope.setProtocol(OIDCLoginProtocol.LOGIN_PROTOCOL);
+
+        ProtocolMapperModel audienceIdp = AudienceProtocolMapper.createClaimMapper("identity-provider audience", EmbraceMultiTenantConstants.IDENTITY_CLIENT_ID, null, true, false, true);
+        mtSpecScope.addProtocolMapper(audienceIdp);
+
+        ProtocolMapperModel model = UserClientRoleMappingMapper.create(EmbraceMultiTenantConstants.IDENTITY_CLIENT_ID, null, "identity-provider client roles", "resource_access.${client_id}.roles", true, false, true);
+        mtSpecScope.addProtocolMapper(model);
+
+        String realmAdminClientId = clientRealm.getMasterAdminClient().getClientId();
+        ProtocolMapperModel masterRealmModel = UserClientRoleMappingMapper.create(realmAdminClientId, null, String.format("%s client roles", realmAdminClientId), "resource_access.${client_id}.roles", true, false, true);
+        mtSpecScope.addProtocolMapper(masterRealmModel);
+
+        String masterAdminClientId = adminRealm.getMasterAdminClient().getClientId();
+        ProtocolMapperModel instanceMasterRealmModel = UserClientRoleMappingMapper.create(masterAdminClientId, null, String.format("%s client roles", masterAdminClientId), "resource_access.${client_id}.roles", true, false, true);
+        mtSpecScope.addProtocolMapper(instanceMasterRealmModel);
+
+        return mtSpecScope;
     }
 
     private void fireRealmPostCreate(RealmModel realm) {
