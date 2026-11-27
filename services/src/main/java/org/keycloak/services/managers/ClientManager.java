@@ -85,6 +85,27 @@ public class ClientManager {
     public static final String multiTenantInstanceDescriptionSuffix = "[multi-tenant instance]";
     public static final String resourceServerDescriptionSuffix = "[resource-server]";
 
+    static String masterDescription(String description) {
+        if (description == null || description.isEmpty()) {
+            return multiTenantDescriptionSuffix;
+        }
+        return description.contains(multiTenantDescriptionSuffix) ? description : description + " " + multiTenantDescriptionSuffix;
+    }
+
+    // A tenant copy carries the instance marker in place of the master one.
+    static String instanceDescription(String description) {
+        if (description == null || description.isEmpty()) {
+            return multiTenantInstanceDescriptionSuffix;
+        }
+        if (description.contains(multiTenantInstanceDescriptionSuffix)) {
+            return description;
+        }
+        if (description.contains(multiTenantDescriptionSuffix)) {
+            return description.replace(multiTenantDescriptionSuffix, multiTenantInstanceDescriptionSuffix);
+        }
+        return description + " " + multiTenantInstanceDescriptionSuffix;
+    }
+
     protected RealmManager realmManager;
 
     public ClientManager(RealmManager realmManager) {
@@ -176,7 +197,7 @@ public class ClientManager {
             realmClientRep.setOptionalClientScopes(null);
             realmClientRep.setServiceAccountsEnabled(true);
 
-            realmClientRep.setDescription(String.format("%s %s", clientRepresentation.getDescription(), multiTenantInstanceDescriptionSuffix));
+            realmClientRep.setDescription(instanceDescription(clientRepresentation.getDescription()));
 
             ClientModel realmInstanceClient = createClient(session, realmElement, realmClientRep); // , true);
 
@@ -251,7 +272,7 @@ public class ClientManager {
         });
 
         // update description on mt-client create
-        mtClient.setDescription((clientRepresentation.getDescription() == null ? "" : clientRepresentation.getDescription() + " ") + multiTenantDescriptionSuffix);
+        mtClient.setDescription(masterDescription(clientRepresentation.getDescription()));
         return TRUE;
     }
 
@@ -299,12 +320,7 @@ public class ClientManager {
             }
 
             // update description in instance client if needed
-            String repDescription = updateClientRepresentation.getDescription();
-            if (repDescription == null || repDescription.isEmpty()) {
-                repDescription = multiTenantInstanceDescriptionSuffix;
-            } else{
-                repDescription = repDescription.contains(multiTenantInstanceDescriptionSuffix) ? repDescription : String.format("%s %s", repDescription, multiTenantInstanceDescriptionSuffix);
-            }
+            String repDescription = instanceDescription(updateClientRepresentation.getDescription());
             realmMtClient.setDescription(repDescription);
 
             // update attributes (inline)!
@@ -390,13 +406,7 @@ public class ClientManager {
         });
 
         // update description in representation if needed
-        String repDescription = updateClientRepresentation.getDescription();
-        if (repDescription == null || repDescription.isEmpty()) {
-            repDescription = multiTenantDescriptionSuffix;
-        } else{
-            repDescription = repDescription.contains(multiTenantDescriptionSuffix) ? repDescription : String.format("%s %s", repDescription, multiTenantDescriptionSuffix);
-        }
-        updateClientRepresentation.setDescription(repDescription);
+        updateClientRepresentation.setDescription(masterDescription(updateClientRepresentation.getDescription()));
 
         return TRUE;
     }
